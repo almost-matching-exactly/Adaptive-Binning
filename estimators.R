@@ -6,6 +6,7 @@ require(MatchIt)
 require(cem)
 require(zeallot)
 require(dbarts)
+require(magrittr)
 
 est_fullmatch <- function(df, n, n_train, f) {
   m.out <- suppressWarnings(matchit(f, data = df, method = 'full'))
@@ -37,7 +38,13 @@ est_prog <- function(df, counterfactuals) {
 
 est_cem <- function(df, n_train) {
   n <- nrow(df)
-  capture.output(mat <- cem(treatment = 'treated', drop = 'Y', data = df), file = 'NUL')
+  capture.output(mat <- tryCatch({cem(treatment = 'treated', drop = 'Y', data = df)},
+           error = function(e){return(rep(NA, sum(df[(n_train + 1):n, "treated"])))}), file = 'NUL')
+  if (all(is.na(mat))) {
+    # browser()
+    return(mat)
+  }
+    
   HTE <- vector('numeric', length = n)
   for (i in 1:n) {
     in_MG <- which(mat$strata == mat$strata[i])
@@ -46,7 +53,7 @@ est_cem <- function(df, n_train) {
     HTE[i] <- mean(df$Y[treated]) - mean(df$Y[control])
   }
   HTE <- HTE[intersect(which(df$treated), (n_train + 1):n)]
-  
+  # browser()
   return(HTE)
 }
 
@@ -62,10 +69,10 @@ est_mahal <- function(df, n_train, f, ratio = 1) {
 }
 
 est_nn <- function(df, n_train, f, ratio = 1) {
-  m.out <- matchit(f, data = df, 
-                   method = "nearest", 
-                   ratio = ratio) %>%
-    suppressWarnings()
+  m.out <-suppressWarnings(matchit(f, data = df, 
+                                   method = "nearest", 
+                                   ratio = ratio))
+    
   
   matches <- m.out$match.matrix
   HTE <- df$Y[as.numeric(rownames(matches))] - df$Y[as.numeric(matches)]
@@ -150,20 +157,20 @@ est_greedy <- function(train_df,
 est_MIP_predict <- function(train_df, test_df, 
                     test_treated, n_test_treated, 
                     train_covs, test_covs,
-                    n_train, lambda1, lambda2, m=1, M=1e05) {
+                    n_train, p, lambda1, lambda2, m=1, M=1e05) {
   MIP_cates <- vector('numeric', n_test_treated)
   message("Running MIP-Predict...")
   for (l in 1:n_test_treated){
     i = test_treated[l]
     message(paste("Matching unit", l, "of", n_test_treated), "\r", appendLF = FALSE); flush.console()
     
-    mip_pars =  setup_mip_predict(xi = as.numeric(test_covs[i, ]), 
+    mip_pars =  setup_mip_predict(xi = as.numeric(test_covs[i, ]), yi = test_df$Y[i], 
                                   zi =  1,  y_train = train_df$Y, 
                                   x_train = as.matrix(train_covs), z_train = train_df$treated, 
-                                  x_test = as.matrix(test_covs[test_df$treated==0]),  
-                                  alpha=0, lambda1=lamdba1, lambda2=lambda2, m=m, M=M)
+                                  x_test = as.matrix(test_covs[test_df$treated==0, ]),  
+                                  alpha=0, lambda1=lambda1, lambda2=lambda2, m=m, M=M)
     sol <- do.call(Rcplex, c(mip_pars, list(objsense="max", control=list(trace=0))))
-    mip_out = recover_pars(sol, n_train, n_test, p)
+    mip_out = recover_pars(sol, n_train, sum(test_df$treated==0), p)
     
     MIP_cates[l] = test_df$Y[i] - mean(test_df$Y[test_df$treated==0][mip_out$w>=0.1])
   }
@@ -175,7 +182,7 @@ est_MIP_predict <- function(train_df, test_df,
 est_MIP_explain <- function(train_df, test_df, 
                             test_treated, n_test_treated, 
                             train_covs, test_covs,
-                            n_train, lambda, m=1, M=1e05) {
+                            n_train, p, lambda, m=1, M=1e05) {
   
   mip_cates = vector('numeric', n_test_treated)
   message("Running MIP-Explain...")
@@ -188,17 +195,42 @@ est_MIP_explain <- function(train_df, test_df,
     
     mip_pars =  setup_mip_explain(fhat = fhat[i], xi = as.numeric(test_covs[i, ]), 
                                   y_test = test_df$Y[test_df$treated==0],
-                                  x_test = as.matrix(test_covs[test_df$treated==0]),  
-                                  alpha=0, lambda=lambda, m=m, M=M)
+                                  x_test = as.matrix(test_covs[test_df$treated==0, ]),  
+                                  lambda=lambda, m=m, M=M)
     sol <- do.call(Rcplex, c(mip_pars, list(objsense="max", control=list(trace=0))))
-    mip_out = recover_pars(sol, n_train, n_test, p)
+    mip_out = recover_pars(sol, n_train, sum(test_df$treated==0), p)
     
     mip_cates[l] = test_df$Y[i] - mean(test_df$Y[test_df$treated==0][mip_out$w>=0.1])
   }
   message("\n")
-  return(MIP_cates)
+  return(mip_cates)
 }
 
+est_MIQP_variance <- function(train_df, test_df, 
+                              test_treated, n_test_treated, 
+                              train_covs, test_covs,
+                              n_train, p, lambda, m=1, M=1e05) {
+  
+  mip_cates = vector('numeric', n_test_treated)
+  
+  message("Running MIQP-Variance")
+  for (l in 1:n_test_treated){
+    i = test_treated[l]
+    message(paste("Matching unit", l, "of", n_test_treated), "\r", appendLF = FALSE); flush.console()
+    
+    mip_pars =  setup_miqp_variance(xi = as.numeric(test_covs[i, ]),
+                                    y_train = train_df$Y[train_df$treated==0],
+                                    x_train = train_covs[train_df$treated==0, ],
+                                    x_test = as.matrix(test_covs[test_df$treated==0, ]),  
+                                    alpha=0, lambda=lambda, m=m, M=M)
+    sol <- do.call(Rcplex, c(mip_pars, list(objsense="max", control=list(trace=0))))
+    mip_out = recover_pars(sol, sum(train_df$treated==0), sum(test_df$treated==0), p)
+    
+    mip_cates[l] = test_df$Y[i] - mean(test_df$Y[test_df$treated==0][mip_out$w>=0.1])
+  }
+  message("\n")
+  return(mip_cates)
+}
 
 get_CATEs <- function(inputs) {
   n_estimators <- 9
@@ -224,9 +256,15 @@ get_CATEs <- function(inputs) {
                            p, 
                            bart_fit)
   
-  CATEs[, 7] <- est_MIP_predict(df)
-  CATEs[, 8] <- est_MIP_explain(df)
-  CATEs[, 9] <- est_MIQP_variance(df)
+  CATEs[, 7] <- est_MIP_predict(train_df, test_df, test_treated, 
+                                n_test_treated, train_covs, test_covs, n_train, p,
+                                lambda1=10, lambda2=10)
+  CATEs[, 8] <- est_MIP_explain(train_df, test_df, test_treated, 
+                                n_test_treated, train_covs, test_covs, n_train, p,
+                                lambda=10)
+  CATEs[, 9] <- est_MIQP_variance(train_df, test_df, test_treated, 
+                                  n_test_treated, train_covs, test_covs, n_train, p,
+                                  lambda=10)
   # CATEs[, 8] <- est_caliper(f, df) # Doesn't work...? 
   return(CATEs)
 }

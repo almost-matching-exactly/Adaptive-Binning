@@ -23,6 +23,7 @@ matching_sim <- function(n_sims = 10, n_units = 100, p = 3, n_train = floor(n_un
   for (sim in 1:n_sims) {
     ## For generating propensity scores and assigning treatment
     X <- matrix(runif(p * n_units, 0, 5), nrow = n_units)
+    #X <- matrix(rexp(p * n_units, 0.5), nrow = n_units)
     e <- expit(.01, X %*% beta)
     Z <- rbinom(n_units, 1, e)
     
@@ -56,7 +57,7 @@ matching_sim <- function(n_sims = 10, n_units = 100, p = 3, n_train = floor(n_un
 }
 
 # Analysis ----------------------------------------------------------------
-res = matching_sim(n_sims = 3, n_units = 100, p = 2)
+res = matching_sim(n_sims = 10, n_units = 100, p = 5)
 
 # unique_HTEs <- unique(HTE$actual)
 # if (length(unique_HTEs) < nrow(HTE) / n_estimators) { # Constant treatment effect 

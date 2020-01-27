@@ -45,7 +45,7 @@ format_CATEs <- function(CATE_obj, true_CATE) {
     `colnames<-`(c('actual', 'predicted')) %>%
     mutate(estimator = rep(c('Full Matching', 'Prognostic',
                              'CEM', 'Mahalanobis', 'Nearest Neighbor',
-                             'Greedy'),
+                             'Greedy', 'MIP-Predict', 'MIP-Explain', 'MIQP-Variance'),
                            each = nrow(.) / n_estimators))
   return(CATE_out)
 }
