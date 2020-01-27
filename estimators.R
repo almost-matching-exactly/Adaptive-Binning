@@ -147,28 +147,58 @@ est_greedy <- function(train_df,
          bins = bins)
 }
 
-est_MIP <- function(train_df, test_df, 
+est_MIP_predict <- function(train_df, test_df, 
                     test_treated, n_test_treated, 
                     train_covs, test_covs,
-                    n_train) {
+                    n_train, lambda1, lambda2, m=1, M=1e05) {
   MIP_cates <- vector('numeric', n_test_treated)
-  message("Running MIP AB...")
+  message("Running MIP-Predict...")
   for (l in 1:n_test_treated){
-    i <- test_treated[l]
+    i = test_treated[l]
     message(paste("Matching unit", l, "of", n_test_treated), "\r", appendLF = FALSE); flush.console()
-  
-    mip_pars <- create_unit_mip(xi = as.numeric(test_covs[i, ]), zi =  1, y_train = train_df$Y,
-                                x_train = as.matrix(train_covs), z_train = train_df$treated,
-                                x_test = as.matrix(test_covs), z_test = test_df$treated,
-                                alpha = 5, lambda = 20, m = 1, M = 1e5)
-    sol <- do.call(Rcplex, c(mip_pars, list(objsense = "max", control = list(trace=0))))
-    mip_out <- recover_pars(sol, n_train, n_test, p)
-  
-    MIP_cates[l] <- test_df$Y[i] - mean(test_df$Y[mip_out$w >= 0.1 & test_df$treated == 0])
+    
+    mip_pars =  setup_mip_predict(xi = as.numeric(test_covs[i, ]), 
+                                  zi =  1,  y_train = train_df$Y, 
+                                  x_train = as.matrix(train_covs), z_train = train_df$treated, 
+                                  x_test = as.matrix(test_covs[test_df$treated==0]),  
+                                  alpha=0, lambda1=lamdba1, lambda2=lambda2, m=m, M=M)
+    sol <- do.call(Rcplex, c(mip_pars, list(objsense="max", control=list(trace=0))))
+    mip_out = recover_pars(sol, n_train, n_test, p)
+    
+    MIP_cates[l] = test_df$Y[i] - mean(test_df$Y[test_df$treated==0][mip_out$w>=0.1])
   }
   message("\n")
   return(MIP_cates)
 }
+
+
+est_MIP_explain <- function(train_df, test_df, 
+                            test_treated, n_test_treated, 
+                            train_covs, test_covs,
+                            n_train, lambda, m=1, M=1e05) {
+  
+  mip_cates = vector('numeric', n_test_treated)
+  message("Running MIP-Explain...")
+  bt = bart(data.frame(train_covs, treated=train_df$treated), 
+            train_df$Y, keeptrees = T, verbose = FALSE)
+  fhat = predict(bt, data.frame(test_covs, treated=test_df$treated))
+  for (l in 1:n_test_treated){
+    i = test_treated[l]
+    message(paste("Matching unit", l, "of", n_test_treated), "\r", appendLF = FALSE); flush.console()
+    
+    mip_pars =  setup_mip_explain(fhat = fhat[i], xi = as.numeric(test_covs[i, ]), 
+                                  y_test = test_df$Y[test_df$treated==0],
+                                  x_test = as.matrix(test_covs[test_df$treated==0]),  
+                                  alpha=0, lambda=lambda, m=m, M=M)
+    sol <- do.call(Rcplex, c(mip_pars, list(objsense="max", control=list(trace=0))))
+    mip_out = recover_pars(sol, n_train, n_test, p)
+    
+    mip_cates[l] = test_df$Y[i] - mean(test_df$Y[test_df$treated==0][mip_out$w>=0.1])
+  }
+  message("\n")
+  return(MIP_cates)
+}
+
 
 get_CATEs <- function(inputs) {
   n_estimators <- 7 - 1
@@ -203,8 +233,22 @@ get_CATEs <- function(inputs) {
   CATEs[, 6] <- greedy_out$CATE
   bins[['Greedy']] <- greedy_out$bins
   
+
   # CATEs[, 7] <- est_MIP(df)$CATEs
   # bins[['MIP 1']] <- est_MIP(df)$bins
+  MIP_predict_out <- est_MIP_predict(df)
+  MIP_explain_out <- est_MIP_explain(df)
+  MIQP_variance_out <- est_MIQP_predict(df)
+  
+  CATEs[, 7] <- MIP_predict_out$CATE
+  bins[['MIP 1']] <- MIP_predict_out$bins
+  
+  CATEs[, 8] <- MIP_explain_out$CATE
+  bins[['MIP 2']] <- MIP_explain_out$bins
+  
+  CATEs[, 9] <- MIQP_variance_out$CATE
+  bins[['MIP 3']] <- MIQP_variance_out$bins
+
   # CATEs[, 8] <- est_caliper(f, df) # Doesn't work...? 
   return(CATEs)
 }
