@@ -38,7 +38,7 @@ matching_sim <- function(n_sims = 10, n_units = 100, p = 3, n_train = floor(n_un
     
     inputs <- estimator_inputs(df, n_train, n_units)
 
-    c(this_sim_CATEs, bins) %<-%
+    this_sim_CATEs <-
       inputs %>%
       get_CATEs() %>%
       format_CATEs(HTE_true)

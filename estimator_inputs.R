@@ -4,7 +4,7 @@ estimator_inputs <- function(df, n_train, n_units) {
   
   train_df <-
     df %>%
-    slice(1:n_train)
+    dplyr::slice(1:n_train)
   
   train_covs <- 
     train_df %>%
@@ -15,7 +15,7 @@ estimator_inputs <- function(df, n_train, n_units) {
   
   test_df <-
     df %>%
-    slice((n_train + 1):n_units)
+    dplyr::slice((n_train + 1):n_units)
   
   test_covs <- 
     test_df %>%
@@ -27,13 +27,25 @@ estimator_inputs <- function(df, n_train, n_units) {
   n_test_control <- length(test_control)
   n_test_treated <- length(test_treated)
   
-  bart_fit <- bart(x.train = dplyr::select(train_df, -Y),
-                   y.train = train_df$Y,
-                   x.test = mutate(test_df[test_df$treated, 1:p], treated = 0), # Prognostic score on test units 
-                   keeptrees = TRUE,
-                   verbose = FALSE)
+  # bart_fit <- bart(x.train = dplyr::select(train_df, -Y),
+  #                  y.train = train_df$Y,
+  #                  x.test = mutate(test_df[test_df$treated, 1:p], treated = 0), # Prognostic score on test units 
+  #                  keeptrees = TRUE,
+  #                  verbose = FALSE)
+  # counterfactuals <- bart_fit$yhat.test.mean
   
-  counterfactuals <- bart_fit$yhat.test.mean
+  # Not actually a bart fit
+  bart_fit <- xgboost(data = as.matrix(dplyr::select(train_df, -Y)),
+                      label = train_df$Y,
+                      nround = 50,
+                      verbose = 0)
+  
+  counterfactuals <- 
+    bart_fit %>%
+    predict(newdata = as.matrix(mutate(test_df[test_df$treated, 1:p], treated = 0)))
+  
+  # browser()
+  
   
   return(list(df = df,
               f = f,
