@@ -74,6 +74,7 @@ simdata = data.frame(simdata)
 names(simdata) = c(paste("x",1:p, sep=""), 
                    paste("a", 1:p, sep=""), 
                    paste("b", 1:p, sep=""), "y", "yest")
+mip_outputs = list()
 for (i in 1:n){
   print(i)
   xi = x_test[i,]
@@ -88,8 +89,8 @@ for (i in 1:n){
                vtype = mip_pars$vtype, objsense = "max")
   t3 = proc.time()[3]
   
-  mip_out = recover_pars_variance(sol, n_train, n_test, p)
-
+  mip_out = recover_pars(sol, n_train, n_test, p)
+  mip_outputs[[i]] = mip_out
   yest = mean(y_test[which(mip_out$w>=0.1)])
   simdata[i, ] = c(xi, mip_out$a, mip_out$b, y_test[i], yest)
   
@@ -99,6 +100,7 @@ for (i in 1:n){
               "total:", round(t4 - t1), "seconds"))
   
 }
+save(mip_outputs, file = '1d_miqp_output.RData')
 ```
 
 ```{r "simple MIQP-V p=1 plot"}
@@ -135,6 +137,7 @@ names(simdata) = c(paste("x",1:p, sep=""),
 
 bt = bart(data.frame(x_train), y_train, keeptrees = T, verbose = FALSE)
 fhat = predict(bt, x_test)
+mip_outputs = list()
 for (i in 1:n){
   print(i)
   xi = x_test[i,]
@@ -150,8 +153,8 @@ for (i in 1:n){
                vtype = mip_pars$vtype, objsense = "max")
   t3 = proc.time()[3]
   
-  mip_out = recover_pars_variance(sol, n_train, n_test-1, p)
-
+  mip_out = recover_pars(sol, n_train, n_test-1, p)
+  mip_outputs[[i]] = mip_out
   yest = mean(y_test[-i][which(mip_out$w>=0.1)])
   simdata[i, ] = c(xi, mip_out$a, mip_out$b, y_test[i], yest)
   
@@ -310,6 +313,7 @@ names(simdata) = c(paste("x",1:p, sep=""),
                    paste("a", 1:p, sep=""), 
                    paste("b", 1:p, sep=""), "y", "yest")
 t1 = proc.time()[3]
+mip_outputs = list()
 for (i in 1:n_test){
   message(paste("Matching unit", i, "of", n_test), "\r", appendLF = FALSE); flush.console()
   xi = x_test[i,]
@@ -322,12 +326,13 @@ for (i in 1:n_test){
                bvec=mip_pars$bvec, sense = mip_pars$sense,
                lb=mip_pars$lb, ub=mip_pars$ub,
                vtype = mip_pars$vtype, objsense = "max", control=list(trace=0))
-  mip_out = recover_pars_variance(sol, n_train, n_test-1, p)
-  
+  mip_out = recover_pars(sol, n_train, n_test-1, p)
+  mip_outputs[[i]] = mip_out
   yest = mean(y_test[-i][which(mip_out$w>=0.1)])
   simdata[i, ] = c(xi, mip_out$a, mip_out$b, y_test[i], yest)
 }
 print(paste("100 matches took", round(proc.time()[3] - t1, 1)))
+save(mip_outputs, file='2d_mip_outputs.RData')
 ```
 
 ```{r "simple MIP-P p=2 plot"}
