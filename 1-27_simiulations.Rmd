@@ -341,9 +341,3 @@ ggplot(simdata) +
         legend.background = element_rect(color="black", size=0.5))
 #ggsave("01-21_p=2_plot.png")
 ```
-
-
-```{r}
-
-```
-
