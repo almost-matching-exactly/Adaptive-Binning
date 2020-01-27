@@ -248,9 +248,9 @@ get_CATEs <- function(inputs) {
   
   CATEs[, 9] <- MIQP_variance_out$CATE
   bins[['MIP 3']] <- MIQP_variance_out$bins
-
-  # CATEs[, 8] <- est_caliper(f, df) # Doesn't work...? 
-  return(CATEs)
+  
+  return(CATEs = CATEs, 
+         bins = bins)
 }
 
 # est_caliper <- function(f, df, ratio = 1) {

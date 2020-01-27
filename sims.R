@@ -52,43 +52,7 @@ matching_sim <- function(n_sims = 10, n_units = 100, p = 3, n_train = floor(n_un
     group_by(estimator) %>%
     summarize(MSE = mean((actual - predicted) ^ 2, na.rm = TRUE),
               percent_missing = 100 * mean(is.na(predicted))) %>%
-    arrange(MSE) 
-  
+    arrange(MSE) %>%
+    return()
   
 }
-
-# Analysis ----------------------------------------------------------------
-res = matching_sim(n_sims = 3, n_units = 100, p = 2)
-
-# unique_HTEs <- unique(HTE$actual)
-# if (length(unique_HTEs) < nrow(HTE) / n_estimators) { # Constant treatment effect 
-#   gg <- 
-#     ggplot(HTE, aes(x = as.factor(actual), y = predicted, color = estimator)) + 
-#     geom_boxplot()
-#   for (i in 1:length(unique_HTEs)) {
-#     gg <- gg + 
-#       geom_hline(yintercept = unique_HTEs[i])
-#   }
-#   gg <- gg + 
-#     labs(x = 'Actual', 
-#          y = 'Predicted',
-#          title = '(Piecewise-)Constant Treatment Effect')
-#   print(gg)
-# } else {
-#   ggplot(HTE, aes(x = actual, y = predicted)) + 
-#     geom_point(aes(color = estimator)) + 
-#     geom_abline(intercept = 0, slope = 1, color = 'black') + 
-#     labs(title = 'Heterogeneous Treatment Effect')
-# }
-# 
-# partitions <- 
-#   bins %>%
-#   c() %>%
-#   unique()
-# 
-# g <- ggplot(data = df, aes(x = X, y = Y)) + 
-#   geom_point(aes(color = treated))
-# for (partition in partitions) {
-#   g <- g + geom_vline(xintercept = partition)
-# }
-# plot(g)
