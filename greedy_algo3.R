@@ -12,32 +12,25 @@ expit <- function(a, x) {
   exp(a * x) / (1 + exp(a * x))
 }
 
-expansion_variance <- function(current_bin, expanded_bin, df, bart_fit) {
-  total_var <- 0
-  p = ncol(df)-2
-  for (j in 1:p) {
-    if (all(current_bin[j, ] == expanded_bin[j, ])) {
-      # print('tada')
-      next
-    }
-    expanded <- which(current_bin[j, ] != expanded_bin[j, ])
-    grid_pts <- seq(current_bin[j, expanded], expanded_bin[j, expanded], 
-                    length.out = 8)
-    bin_centers <- rowMeans(current_bin)
-    
-    pred_data <- 
-      sapply(grid_pts, function(x) {
-        bin_centers[j] <- x
-        bin_centers
-      }) %>%
-      t() %>% 
-      as.data.frame() %>%
-      mutate(treatment = 1) %>%
-      `colnames<-`(colnames(dplyr::select(df, -Y)))
-    
-    total_var <- total_var + var(colMeans(predict(bart_fit, pred_data)))
-  }
-  return(total_var)
+expansion_variance <- function(cov, current_bin, expanded_bin, df, bart_fit) {
+  p <- ncol(df) - 2
+  
+  expanded <- which(current_bin[cov, ] != expanded_bin[cov, ])
+  grid_pts <- seq(current_bin[cov, expanded], expanded_bin[cov, expanded], 
+                  length.out = 8)
+  bin_centers <- rowMeans(current_bin)
+  
+  pred_data <- 
+    sapply(grid_pts, function(x) {
+      bin_centers[cov] <- x
+      bin_centers
+    }) %>%
+    t() %>% 
+    as.data.frame() %>%
+    mutate(treatment = 1) %>%
+    `colnames<-`(colnames(dplyr::select(df, -Y)))
+  
+  return(var(colMeans(predict(bart_fit, pred_data))))
 }
 # Algorithm ---------------------------------------------------------------
 
@@ -96,6 +89,11 @@ matching_sim <- function(n_sims = 10, n_units = 100, p = 3, n_train = floor(n_un
     n_test_control <- length(test_control)
     n_test_treated <- length(test_treated)
     
+    # sorted_test_control_covs <- 
+    #   test_covs %>% 
+    #   slice(test_control) %>% 
+    #   lapply(sort, index.return = TRUE)
+    
     store_all_HTEs <- NULL
     
     bart_fit <- bart(x.train = dplyr::select(train_df, -Y),
@@ -124,9 +122,6 @@ matching_sim <- function(n_sims = 10, n_units = 100, p = 3, n_train = floor(n_un
     # Every unit will trivially be in their own MG 
     already_matched <- as.list(test_treated)
     
-    # Idea: Don't consider test control units whose bins are strictly larger than 
-    #   those of test control units you've already co6nsidered
-    #   This should slow things down, however, so table it for now. 
     message("Running Greedy AB...")
     for (i in 1:n_test_treated) {
       message(paste("Matching unit", i, "of", n_test_treated), "\r", appendLF = FALSE); flush.console()
@@ -157,8 +152,7 @@ matching_sim <- function(n_sims = 10, n_units = 100, p = 3, n_train = floor(n_un
           else {
             distance_down <- min(abs(bin_copy[j, 1] - test_df[expand_down, j]))  
           }
-          # So what happens is that one direction is really responsible for the treatment effect 
-          # and BART knows this so you never expand on it and then you end up making the other bins trivially large 
+          
           if (is.infinite(distance_up) & is.infinite(distance_down)) { 
             bin_var[j] <- Inf
             next
@@ -172,15 +166,13 @@ matching_sim <- function(n_sims = 10, n_units = 100, p = 3, n_train = floor(n_un
             proposed_bin[[j]] <- bin_copy
             proposed_bin[[j]][j, 1] <- test_df[expand_down[which.min(abs(bin_copy[j, 1] - test_df[expand_down, j]))], j]
           }
-          # browser()
-          bin_var[j] <- expansion_variance(bin_copy, proposed_bin[[j]], train_df, bart_fit)
+          
+          bin_var[j] <- expansion_variance(j, bin_copy, proposed_bin[[j]], train_df, bart_fit)
         }
         
         expand_along <- which.min(bin_var)
-        # browser()
         bin_copy <- proposed_bin[[expand_along]]
         in_MG <- apply(test_covs, 1, function(x) all(x >= bin_copy[, 1]) & all(x <= bin_copy[, 2]))
-        # browser()
         already_matched[[i]] <- unique(c(already_matched[[i]], which(in_MG)))
         
         counter <- counter + 1
