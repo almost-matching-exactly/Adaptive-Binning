@@ -18,17 +18,16 @@ expansion_variance <- function(cov, current_bin, expanded_bin, df, bart_fit) {
   expanded <- which(current_bin[cov, ] != expanded_bin[cov, ])
   grid_pts <- seq(current_bin[cov, expanded], expanded_bin[cov, expanded], 
                   length.out = 8)
-  bin_centers <- rowMeans(current_bin)
   
+  bin_centers <- rowMeans(current_bin)
+
   pred_data <- 
     sapply(grid_pts, function(x) {
       bin_centers[cov] <- x
       bin_centers
     }) %>%
     t() %>% 
-    as.data.frame() %>%
-    mutate(treatment = 1) %>%
-    `colnames<-`(colnames(dplyr::select(df, -Y)))
+    cbind(1) # Treatment = TRUE
   
   return(var(colMeans(predict(bart_fit, pred_data))))
 }
