@@ -125,7 +125,6 @@ matching_sim <- function(n_sims = 10, n_units = 100, p = 3, n_train = floor(n_un
     for (i in 1:n_test_treated) {
       message(paste("Matching unit", i, "of", n_test_treated), "\r", appendLF = FALSE); flush.console()
       bin_copy <- matrix(bins[i, ,], ncol = 2) # For case of 1 covariate
-      counter <- 0
       while (length(already_matched[[i]]) < 5) { # Variance is not too big
         min_var <- Inf
         min_size_increase <- Inf
@@ -173,8 +172,6 @@ matching_sim <- function(n_sims = 10, n_units = 100, p = 3, n_train = floor(n_un
         bin_copy <- proposed_bin[[expand_along]]
         in_MG <- apply(test_covs, 1, function(x) all(x >= bin_copy[, 1]) & all(x <= bin_copy[, 2]))
         already_matched[[i]] <- unique(c(already_matched[[i]], which(in_MG)))
-        
-        counter <- counter + 1
       }
       
       bins[i, , ] <- bin_copy
