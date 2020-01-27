@@ -4,7 +4,6 @@ source('helpers.R')
 
 require(MatchIt)
 require(cem)
-require(zeallot)
 require(dbarts)
 
 est_fullmatch <- function(df, n, n_train, f) {
@@ -144,7 +143,8 @@ est_greedy <- function(train_df,
   }
   message("\n")
   CATE <- get_greedy_CATE(n_test_treated, test_covs, bins, test_df)
-  return(CATE)
+  return(CATE = CATE, 
+         bins = bins)
 }
 
 est_MIP <- function(train_df, test_df, 
@@ -172,6 +172,13 @@ est_MIP <- function(train_df, test_df,
 
 get_CATEs <- function(inputs) {
   n_estimators <- 7 - 1
+  n_MIPs <- 0
+  bins <- vector(mode = 'list', length = n_MIPs + 1)
+  ab_names <- c('Greedy')
+  if (n_MIPs > 0) {
+    ab_names <- c(ab_names, paste0(rep('MIP ', n_MIPs), 1:n_MIPs))
+  }
+  names(bins) <- ab_names
   
   c(df, f, n, n_train, p,
     train_df, train_covs, train_control, train_treated,
@@ -185,7 +192,7 @@ get_CATEs <- function(inputs) {
   CATEs[, 3] <- est_cem(df, n_train)
   CATEs[, 4] <- est_mahal(df, n_train, f, ratio = 1)
   CATEs[, 5] <- est_nn(df, n_train, f, ratio = 1)
-  CATEs[, 6] <- est_greedy(train_df, 
+  greedy_out <- est_greedy(train_df, 
                            test_df, 
                            test_covs, 
                            test_control, 
@@ -193,8 +200,11 @@ get_CATEs <- function(inputs) {
                            n_test_treated, 
                            p, 
                            bart_fit)
+  CATEs[, 6] <- greedy_out$CATE
+  bins[['Greedy']] <- greedy_out$bins
   
-  # CATEs[, 7] <- est_MIP(df)
+  # CATEs[, 7] <- est_MIP(df)$CATEs
+  # bins[['MIP 1']] <- est_MIP(df)$bins
   # CATEs[, 8] <- est_caliper(f, df) # Doesn't work...? 
   return(CATEs)
 }

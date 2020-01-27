@@ -3,6 +3,7 @@ rm(list = ls())
 
 # Libraries ---------------------------------------------------------------
 require(beepr)
+require(zeallot)
 require(tidyverse)
 source('estimator_inputs.R')
 source('helpers.R')
@@ -19,7 +20,7 @@ matching_sim <- function(n_sims = 10, n_units = 100, p = 3, n_train = floor(n_un
   
   # Effect of covariates on outcome; not always used 
   gamma <- matrix(runif(p, -3, 3), nrow = p)
-  store_all_CATEs <- NULL
+  all_CATEs <- NULL
   for (sim in 1:n_sims) {
     ## For generating propensity scores and assigning treatment
     X <- matrix(runif(p * n_units, 0, 5), nrow = n_units)
@@ -36,23 +37,24 @@ matching_sim <- function(n_sims = 10, n_units = 100, p = 3, n_train = floor(n_un
     
     inputs <- estimator_inputs(df, n_train, n_units)
 
-    this_sim_CATEs <- 
+    c(this_sim_CATEs, bins) %<-%
       inputs %>%
       get_CATEs() %>%
       format_CATEs(HTE_true)
     
-    store_all_CATEs = rbind(store_all_CATEs, this_sim_CATEs)
+    all_CATEs = rbind(all_CATEs, this_sim_CATEs)
     
     print(sprintf('%d of %d simulations completed', sim, n_sims))
   }
   beep()
   
-  store_all_CATEs %>%
+  all_CATEs %>%
     group_by(estimator) %>%
     summarize(MSE = mean((actual - predicted) ^ 2, na.rm = TRUE),
               percent_missing = 100 * mean(is.na(predicted))) %>%
-    arrange(MSE) %>%
-    return()
+    arrange(MSE) 
+  
+  
 }
 
 # Analysis ----------------------------------------------------------------
