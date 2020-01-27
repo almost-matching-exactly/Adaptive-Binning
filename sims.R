@@ -3,6 +3,7 @@ rm(list = ls())
 
 # Libraries ---------------------------------------------------------------
 require(beepr)
+require(zeallot)
 require(tidyverse)
 source('estimator_inputs.R')
 source('helpers.R')
@@ -19,7 +20,7 @@ matching_sim <- function(n_sims = 10, n_units = 100, p = 3, n_train = floor(n_un
   
   # Effect of covariates on outcome; not always used 
   gamma <- matrix(runif(p, -3, 3), nrow = p)
-  store_all_CATEs <- NULL
+  all_CATEs <- NULL
   for (sim in 1:n_sims) {
     ## For generating propensity scores and assigning treatment
     X <- matrix(runif(p * n_units, 0, 5), nrow = n_units)
@@ -37,18 +38,18 @@ matching_sim <- function(n_sims = 10, n_units = 100, p = 3, n_train = floor(n_un
     
     inputs <- estimator_inputs(df, n_train, n_units)
 
-    this_sim_CATEs <- 
+    c(this_sim_CATEs, bins) %<-%
       inputs %>%
       get_CATEs() %>%
       format_CATEs(HTE_true)
     
-    store_all_CATEs = rbind(store_all_CATEs, this_sim_CATEs)
+    all_CATEs = rbind(all_CATEs, this_sim_CATEs)
     
     print(sprintf('%d of %d simulations completed', sim, n_sims))
   }
   beep()
   
-  store_all_CATEs %>%
+  all_CATEs %>%
     group_by(estimator) %>%
     summarize(MSE = mean((actual - predicted) ^ 2, na.rm = TRUE),
               percent_missing = 100 * mean(is.na(predicted))) %>%
@@ -56,38 +57,3 @@ matching_sim <- function(n_sims = 10, n_units = 100, p = 3, n_train = floor(n_un
     return()
 }
 
-# Analysis ----------------------------------------------------------------
-res = matching_sim(n_sims = 10, n_units = 100, p = 5)
-
-# unique_HTEs <- unique(HTE$actual)
-# if (length(unique_HTEs) < nrow(HTE) / n_estimators) { # Constant treatment effect 
-#   gg <- 
-#     ggplot(HTE, aes(x = as.factor(actual), y = predicted, color = estimator)) + 
-#     geom_boxplot()
-#   for (i in 1:length(unique_HTEs)) {
-#     gg <- gg + 
-#       geom_hline(yintercept = unique_HTEs[i])
-#   }
-#   gg <- gg + 
-#     labs(x = 'Actual', 
-#          y = 'Predicted',
-#          title = '(Piecewise-)Constant Treatment Effect')
-#   print(gg)
-# } else {
-#   ggplot(HTE, aes(x = actual, y = predicted)) + 
-#     geom_point(aes(color = estimator)) + 
-#     geom_abline(intercept = 0, slope = 1, color = 'black') + 
-#     labs(title = 'Heterogeneous Treatment Effect')
-# }
-# 
-# partitions <- 
-#   bins %>%
-#   c() %>%
-#   unique()
-# 
-# g <- ggplot(data = df, aes(x = X, y = Y)) + 
-#   geom_point(aes(color = treated))
-# for (partition in partitions) {
-#   g <- g + geom_vline(xintercept = partition)
-# }
-# plot(g)

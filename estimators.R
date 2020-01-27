@@ -4,7 +4,6 @@ source('helpers.R')
 
 require(MatchIt)
 require(cem)
-require(zeallot)
 require(dbarts)
 require(magrittr)
 
@@ -151,7 +150,8 @@ est_greedy <- function(train_df,
   }
   message("\n")
   CATE <- get_greedy_CATE(n_test_treated, test_covs, bins, test_df)
-  return(CATE)
+  return(CATE = CATE, 
+         bins = bins)
 }
 
 est_MIP_predict <- function(train_df, test_df, 
@@ -233,7 +233,14 @@ est_MIQP_variance <- function(train_df, test_df,
 }
 
 get_CATEs <- function(inputs) {
-  n_estimators <- 9
+  n_estimators <- 7 - 1
+  n_MIPs <- 0
+  bins <- vector(mode = 'list', length = n_MIPs + 1)
+  ab_names <- c('Greedy')
+  if (n_MIPs > 0) {
+    ab_names <- c(ab_names, paste0(rep('MIP ', n_MIPs), 1:n_MIPs))
+  }
+  names(bins) <- ab_names
   
   c(df, f, n, n_train, p,
     train_df, train_covs, train_control, train_treated,
@@ -247,7 +254,7 @@ get_CATEs <- function(inputs) {
   CATEs[, 3] <- est_cem(df, n_train)
   CATEs[, 4] <- est_mahal(df, n_train, f, ratio = 1)
   CATEs[, 5] <- est_nn(df, n_train, f, ratio = 1)
-  CATEs[, 6] <- est_greedy(train_df, 
+  greedy_out <- est_greedy(train_df, 
                            test_df, 
                            test_covs, 
                            test_control, 
@@ -255,7 +262,25 @@ get_CATEs <- function(inputs) {
                            n_test_treated, 
                            p, 
                            bart_fit)
+  CATEs[, 6] <- greedy_out$CATE
+  bins[['Greedy']] <- greedy_out$bins
   
+
+  # CATEs[, 7] <- est_MIP(df)$CATEs
+  # # bins[['MIP 1']] <- est_MIP(df)$bins
+  # MIP_predict_out <- est_MIP_predict(df)
+  # MIP_explain_out <- est_MIP_explain(df)
+  # MIQP_variance_out <- est_MIQP_predict(df)
+  # 
+  # CATEs[, 7] <- MIP_predict_out$CATE
+  # #bins[['MIP 1']] <- MIP_predict_out$bins
+  # 
+  # CATEs[, 8] <- MIP_explain_out$CATE
+  # bins[['MIP 2']] <- MIP_explain_out$bins
+  # 
+  # CATEs[, 9] <- MIQP_variance_out$CATE
+  # bins[['MIP 3']] <- MIQP_variance_out$bins
+  # 
   CATEs[, 7] <- est_MIP_predict(train_df, test_df, test_treated, 
                                 n_test_treated, train_covs, test_covs, n_train, p,
                                 lambda1=10, lambda2=10)
