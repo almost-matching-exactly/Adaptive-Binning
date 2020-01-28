@@ -1,11 +1,12 @@
 
 source('helpers.R')
-# source("AB_MIP.R")
+ source("AB_MIPs.R")
 
 require(MatchIt)
 require(cem)
 require(dbarts)
 require(magrittr)
+require(xgboost)
 
 est_fullmatch <- function(df, n, n_train, f) {
   m.out <- suppressWarnings(matchit(f, data = df, method = 'full'))
@@ -150,8 +151,7 @@ est_greedy <- function(train_df,
   }
   message("\n")
   CATE <- get_greedy_CATE(n_test_treated, test_covs, bins, test_df)
-  return(CATE = CATE, 
-         bins = bins)
+  list(CATE = CATE, bins = bins)
 }
 
 est_MIP_predict <- function(train_df, test_df, 
@@ -233,7 +233,7 @@ est_MIQP_variance <- function(train_df, test_df,
 }
 
 get_CATEs <- function(inputs) {
-  n_estimators <- 7 - 1
+  n_estimators <- 9
   n_MIPs <- 0
   bins <- vector(mode = 'list', length = n_MIPs + 1)
   ab_names <- c('Greedy')

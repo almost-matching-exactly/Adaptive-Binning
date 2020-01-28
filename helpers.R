@@ -34,6 +34,15 @@ get_greedy_CATE <- function(n_test_treated, test_covs, bins, test_df) {
   return(CATE)
 }
 
+summarize_cates <- function(all_CATEs){
+  all_CATEs %>%
+    group_by(estimator) %>%
+    summarize(MSE = mean((actual - predicted) ^ 2, na.rm = TRUE),
+              percent_missing = 100 * mean(is.na(predicted))) %>%
+    arrange(MSE) %>%
+    return()
+}
+
 format_CATEs <- function(CATE_obj, true_CATE) {
   n_estimators <- ncol(CATE_obj)
   CATE_out <- NULL

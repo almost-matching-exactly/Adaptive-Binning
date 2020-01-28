@@ -1,6 +1,3 @@
-
-rm(list = ls())
-
 # Libraries ---------------------------------------------------------------
 require(beepr)
 require(zeallot)
@@ -9,7 +6,8 @@ source('estimator_inputs.R')
 source('helpers.R')
 source('estimators.R')
 
-matching_sim <- function(n_sims = 10, n_units = 100, p = 3, n_train = floor(n_units / 2)) {
+matching_sim <- function(n_sims = 10, n_units = 100, p = 3, n_train = floor(n_units / 2),
+                         X_dgp = NULL, e_dgp=NULL, HTE_dgp = NULL, y_dgp = NULL, ... ) {
   
   n_test <- n_units - n_train
   # n_estimators <- 7 # Full Matching, Prognostic, CEM, Mahalanobis, Propensity Score, Greedy, MIP
@@ -23,17 +21,32 @@ matching_sim <- function(n_sims = 10, n_units = 100, p = 3, n_train = floor(n_un
   all_CATEs <- NULL
   for (sim in 1:n_sims) {
     ## For generating propensity scores and assigning treatment
-    X <- matrix(runif(p * n_units, 0, 5), nrow = n_units)
+    if (is.null(X_dgp))
+      X <- matrix(runif(p * n_units, 0, 5), nrow = n_units)
+    else
+      X <- X_dgp(n, p, ...)
     #X <- matrix(rexp(p * n_units, 0.5), nrow = n_units)
-    e <- expit(.01, X %*% beta)
+    if(is.null(e_dgp))
+      e <- expit(.01, X %*% beta)
+    else
+      e <- e_dgp(X, ...)
+    
     Z <- rbinom(n_units, 1, e)
     
     ## Generate outcome 
-    HTE <- (X[, 1] > 1.5) * beta_tilde * Z
+    if(is.null(HTE_dgp))
+      HTE <- (X[, 1] > 1.5) * beta_tilde * Z
+    else
+      HTE <- HTE_dgp(X, Z, ...)
+
     # HTE <- beta_tilde * Z
     HTE_true <- HTE[intersect((n_train + 1):n_units, which(Z == 1))]
-    Y <- alpha + HTE + rnorm(n_units, 0, 1)
-    
+
+    if(is.null(y_dgp))
+      Y <- alpha + HTE + rnorm(n_units, 0, 1)
+    else
+      Y <- y_dgp(X, Z, HTE, ...)
+
     df <- cbind(data.frame(X), data.frame(Y = Y, treated = as.logical(Z)))
     
     inputs <- estimator_inputs(df, n_train, n_units)
@@ -49,11 +62,6 @@ matching_sim <- function(n_sims = 10, n_units = 100, p = 3, n_train = floor(n_un
   }
   beep()
   
-  all_CATEs %>%
-    group_by(estimator) %>%
-    summarize(MSE = mean((actual - predicted) ^ 2, na.rm = TRUE),
-              percent_missing = 100 * mean(is.na(predicted))) %>%
-    arrange(MSE) %>%
-    return()
+  all_CATEs 
 }
 
