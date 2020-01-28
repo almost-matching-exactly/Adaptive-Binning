@@ -172,7 +172,7 @@ lower_than <- group_means$mean <= baseline_mean
 
 colors <- if_else(lower_than, 1, 2)
 
-colors = brewer.pal(3, "Set1")[if_else(lower_than, 1, 2)]
+colors = brewer.pal(3, "Set1")[if_else(lower_than, 2, 1)]
 colors[1:4] = brewer.pal(3, "Set1")[3]
 
 ggplot(data=res) + geom_violin(aes(y=abs(predicted - actual), x=estimator, fill=estimator),
@@ -207,7 +207,7 @@ group_means <-
   group_by(estimator) %>%
   summarize(mean = mean(abs(predicted - actual), na.rm = TRUE))
 
-baseline_estimators <- c('Greedy', 'MIP-Predict', 'MIQP-Variance')
+baseline_estimators <- c('Greedy',  'MIP-Explain', 'MIP-Predict', 'MIQP-Variance')
 
 baseline_mean <- 
   group_means %>%
@@ -256,7 +256,7 @@ group_means <-
   group_by(estimator) %>%
   summarize(mean = mean(abs(predicted - actual), na.rm = TRUE))
 
-baseline_estimators <- c('Greedy', 'MIP-Predict', 'MIQP-Variance')
+baseline_estimators <- c('Greedy',  'MIP-Explain', 'MIP-Predict', 'MIQP-Variance')
 
 baseline_mean <- 
   group_means %>%
@@ -272,7 +272,6 @@ colors[1:4] = brewer.pal(3, "Set1")[3]
 ggplot(data=res) + geom_violin(aes(y=abs(predicted - actual), x=estimator, fill=estimator),
                                color="black", draw_quantiles = c(0.5), size=0.2) + 
   scale_fill_manual(values = colors) + 
-  ylim(c(0, quantile(abs(res$predicted - res$actual), probs = .975, na.rm=T))) +
   ylim(c(0, quantile(abs(res$predicted - res$actual), probs = .975, na.rm=T))) +
   xlab("") + ylab("Mean absolute estimation error") + ggtitle("Estimation error") + 
   theme_minimal() + theme(legend.position = "none")
@@ -313,7 +312,7 @@ group_means <-
   group_by(estimator) %>%
   summarize(mean = mean(abs(predicted - actual), na.rm = TRUE))
 
-baseline_estimators <- c('Greedy', 'MIP-Predict', 'MIQP-Variance')
+baseline_estimators <- c('Greedy',  'MIP-Explain', 'MIP-Predict', 'MIQP-Variance')
 
 baseline_mean <- 
   group_means %>%
@@ -368,7 +367,7 @@ group_means <-
   group_by(estimator) %>%
   summarize(mean = mean(abs(predicted - actual), na.rm = TRUE))
 
-baseline_estimators <- c('Greedy', 'MIP-Predict', 'MIQP-Variance')
+baseline_estimators <- c('Greedy', 'MIP-Explain', 'MIP-Predict', 'MIQP-Variance')
 
 baseline_mean <- 
   group_means %>%
@@ -384,7 +383,7 @@ colors[1:4] = brewer.pal(3, "Set1")[3]
 ggplot(data=res) + geom_violin(aes(y=abs(predicted - actual), x=estimator, fill=estimator),
                                color="black", draw_quantiles = c(0.5), size=0.2) + 
   scale_fill_manual(values = colors) + 
-  ylim(c(0, quantile(abs(res$predicted - res$actual), probs = .975, na.rm=T))) +
+  ylim(c(0, quantile(abs(res$predicted - res$actual), probs = .9, na.rm=T))) +
   xlab("") + ylab("Mean absolute estimation error") + ggtitle("Estimation error") + 
   theme_minimal() + theme(legend.position = "none")
 ```
