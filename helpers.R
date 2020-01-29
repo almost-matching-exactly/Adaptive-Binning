@@ -43,7 +43,7 @@ summarize_cates <- function(all_CATEs){
     return()
 }
 
-format_CATEs <- function(CATE_obj, true_CATE) {
+format_CATEs <- function(CATE_obj, true_CATE, estimators) {
   n_estimators <- ncol(CATE_obj)
   CATE_out <- NULL
   for (i in 1:n_estimators) {
@@ -53,9 +53,6 @@ format_CATEs <- function(CATE_obj, true_CATE) {
   CATE_out %<>%
   as.data.frame() %>%
     `colnames<-`(c('actual', 'predicted')) %>%
-    mutate(estimator = rep(c('Full Matching', 'Prognostic',
-                             'CEM', 'Mahalanobis', 'Nearest Neighbor',
-                             'Greedy', 'MIP-Predict', 'MIP-Explain', 'MIQP-Variance'),
-                           each = nrow(.) / n_estimators))
+    mutate(estimator = rep(estimators, each = nrow(.) / n_estimators))
   return(CATE_out)
 }

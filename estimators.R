@@ -1,6 +1,5 @@
-
 source('helpers.R')
- source("AB_MIPs.R")
+# source("AB_MIPs.R")
 
 require(MatchIt)
 require(cem)
@@ -247,10 +246,6 @@ get_CATEs <- function(inputs, estimators) {
     test_df, test_covs, test_control, test_treated, 
     n_test_control, n_test_treated, 
     bart_fit, counterfactuals) %<-% inputs
-  
-  c("MIP-Explain", "MIP-Predict", "MIQP-Variance", 
-    "Greedy", "CEM", "Full Matching" , "Nearest Neighbor", 
-    "Prognostic", "Mahalanobis")
   
   CATEs <- matrix(nrow = n_test_treated, ncol = n_estimators)
   for (i in 1:n_estimators) {
