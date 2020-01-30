@@ -221,8 +221,9 @@ est_MIQP_variance <- function(train_df, test_df,
     message(paste("Matching unit", l, "of", n_test_treated), "\r", appendLF = FALSE); flush.console()
     
     mip_pars =  setup_miqp_variance(xi = as.numeric(test_covs[i, ]),
-                                    y_train = train_df$Y[train_df$treated==0],
-                                    x_train = train_covs[train_df$treated==0, ],
+                                    y_train = train_df$Y,
+                                    x_train = train_covs,
+                                    z_train = train_df$treated,
                                     x_test = as.matrix(test_covs[test_df$treated==0, ]),  
                                     alpha=0, lambda=lambda, m=m, M=M)
     sol <- do.call(Rcplex, c(mip_pars, list(objsense="max", control=list(trace=0))))

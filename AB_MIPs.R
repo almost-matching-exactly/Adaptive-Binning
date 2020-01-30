@@ -148,7 +148,7 @@ setup_mip_explain = function(fhat, xi, y_test, x_test, lambda=1, m=1, M=1e10){
   list(Amat=Amat, bvec=bvec, cvec=cvec, lb=lbs, ub=ubs, vtype=vtype, sense=svec)
 }
 
-setup_miqp_variance = function(xi, y_train, x_train, x_test, lambda=1, alpha=0,  m=1, M=1e10){
+setup_miqp_variance = function(xi, y_train, x_train, x_test, z_train, lambda=1, alpha=0,  m=1, M=1e10){
   n_test = nrow(x_test)
   n_train = nrow(x_train)
   p = length(xi)
@@ -176,8 +176,9 @@ setup_miqp_variance = function(xi, y_train, x_train, x_test, lambda=1, alpha=0, 
   n_vars = length(cvec)
   
   Qmat = matrix(0, n_vars, n_vars)
-  Qmat[(s_start+1):n_vars, (s_start+1):n_vars] = outer(y_train, y_train, 
-                                                       FUN=function(x1, x2) - lambda * sqrt((x1 - x2)^2))
+  Qmat[(s_start+1):n_vars, (s_start+1):n_vars] = 
+    outer(y_train, y_train, FUN=function(x1, x2) - lambda * sqrt((x1 - x2)^2)) * 
+    outer(z_train, z_train, FUN=function(z1, z2) abs(z1 - z2))
 
   # Constraint 2 a_j < x_j 
   a2 = matrix(0, p, n_vars)
