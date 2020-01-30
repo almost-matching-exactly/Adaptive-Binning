@@ -67,7 +67,6 @@ for (i in 1:n){
               "total:", round(t4 - t1), "seconds"))
   
 }
-save(mip_outputs, file = '1d_miqp_output.RData')
 ```
 
 ```{r "simple MIQP-V p=1 plot"}
@@ -110,8 +109,8 @@ for (i in 1:n_test){
   mip_pars = setup_miqp_variance(xi = xi, 
                                  x_train=x_train, y_train = y_train, z_train=z_train,
                                  x_test =  x_test[-i, , drop=F],
-                                 lambda=100, m=1, M=1e5)
-  sol = Rcplex(cvec=mip_pars$cvec, Amat=mip_pars$Amat,
+                                 lambda=100, alpha=1, m=1, M=1e5)
+  sol = Rcplex(cvec=mip_pars$cvec, Amat=mip_pars$Amat, Qmat = mip_pars$Qmat,
                bvec=mip_pars$bvec, sense = mip_pars$sense,
                lb=mip_pars$lb, ub=mip_pars$ub,
                vtype = mip_pars$vtype, objsense = "max", control=list(trace=0))
@@ -121,7 +120,6 @@ for (i in 1:n_test){
   simdata[i, ] = c(xi, mip_out$a, mip_out$b, y_test[i], yest)
 }
 print(paste("100 matches took", round(proc.time()[3] - t1, 1)))
-save(mip_outputs, file='2d_mip_outputs.RData')
 ```
 
 ```{r "simple MIP-P p=2 plot"}
