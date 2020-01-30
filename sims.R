@@ -5,6 +5,7 @@ require(tidyverse)
 source('estimator_inputs.R')
 source('helpers.R')
 source('estimators.R')
+source('plot_results.R')
 
 matching_sim <- function(n_sims = 10, n_units = 100, p = 3, n_train = floor(n_units / 2),
                          estimators = c('Full Matching', 'Prognostic', 'CEM',
@@ -22,6 +23,7 @@ matching_sim <- function(n_sims = 10, n_units = 100, p = 3, n_train = floor(n_un
   # Effect of covariates on outcome; not always used 
   gamma <- matrix(runif(p, -3, 3), nrow = p)
   all_CATEs <- NULL
+  all_bins <- vector('list', length = n_sims)
   for (sim in 1:n_sims) {
     ## For generating propensity scores and assigning treatment
     if (is.null(X_dgp))
@@ -54,12 +56,25 @@ matching_sim <- function(n_sims = 10, n_units = 100, p = 3, n_train = floor(n_un
     
     inputs <- estimator_inputs(df, n_train, n_units)
     
-    this_sim_CATEs <-
+    est_out <- 
       inputs %>%
-      get_CATEs(estimators) %>%
+      get_CATEs(estimators)
+    
+    this_sim_CATEs <- 
+      est_out %>%
+      extract2('CATEs') %>%
       format_CATEs(HTE_true, estimators)
     
-    all_CATEs = rbind(all_CATEs, this_sim_CATEs)
+    this_sim_bins <- 
+      est_out %>%
+      extract2('bins')
+    # this_sim_CATEs <-
+    #   inputs %>%
+    #   get_CATEs(estimators) %>%
+    #   format_CATEs(HTE_true, estimators)
+    
+    all_CATEs <- rbind(all_CATEs, this_sim_CATEs)
+    all_bins[[sim]] <- this_sim_bins
     
     print(sprintf('%d of %d simulations completed', sim, n_sims))
   }
