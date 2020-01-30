@@ -81,7 +81,7 @@ ggplot(simdata) +
 
 ```
 
-## 2D Example MIP-Predict
+## 2D Example MIQP-Variance
 
 ```{r "simple MIP-P p=2", cache=TRUE, results='hide'}
 n = 100
@@ -89,9 +89,9 @@ n_train = 100
 n_test = 100
 p = 2
 x_train = matrix(rexp(n_train*p, 2), n_train, p)
-y_train = rowSums(log(x_train)) + rnorm(n_train, 0, 1)
+y_train = rowSums(log(x_train)) #+ rnorm(n_train, 0, 1)
 x_test = matrix(rexp(n_test*p, 2), n_test, p)
-y_test = rowSums(log(x_test)) + rnorm(n_test, 0, 1)
+y_test = rowSums(log(x_test)) #+ rnorm(n_test, 0, 1)
 z_train = rep(1, n_train)
 z_train[sample(1:n_train, n_train/2, replace = FALSE)] = 0
 z_test = rep(0, n_test)
@@ -109,7 +109,7 @@ for (i in 1:n_test){
   mip_pars = setup_miqp_variance(xi = xi, 
                                  x_train=x_train, y_train = y_train, z_train=z_train,
                                  x_test =  x_test[-i, , drop=F],
-                                 lambda=100, alpha=1, m=1, M=1e5)
+                                 lambda=3, alpha=1, m=1, M=1e5)
   sol = Rcplex(cvec=mip_pars$cvec, Amat=mip_pars$Amat, Qmat = mip_pars$Qmat,
                bvec=mip_pars$bvec, sense = mip_pars$sense,
                lb=mip_pars$lb, ub=mip_pars$ub,
@@ -128,6 +128,7 @@ ggplot(simdata) +
   geom_rect(aes(xmin=a1, ymin=a2, xmax=b1, ymax=b2), fill="grey", 
             color="black", size=0.5, alpha=0.3) + 
   geom_point(aes(x=x1, y=x2, color=abs(yest - y)/mean(abs(y))), size=2) + 
+  geom_raster(aes(x=x1, y=x2, fill=y)) + 
   scale_color_gradient(low="blue", high="red") + 
   xlab("x1") + ylab("x2") +  labs(color="% Abs. error") +  theme_bw() + 
   theme(legend.position = c(0.9,0.5), 
@@ -261,7 +262,8 @@ HTE_dgp = function(X, Z){
 y_dgp = function(X, Z, HTE){
   return(2 + 5 * Z + HTE + rnorm(nrow(X), 0, 1))
 }
-res = matching_sim(1, 500, 3, HTE_dgp = HTE_dgp, y_dgp=y_dgp)
+res = matching_sim(10, 200, 3, HTE_dgp = HTE_dgp, y_dgp=y_dgp, 
+                   estimators = c("Greedy", "CEM", "Full Matching", "MIQP-Variance"))
 res$estimator = factor(res$estimator, levels=c("MIP-Explain", "MIP-Predict", "MIQP-Variance", 
                                                "Greedy", "CEM", "Full Matching" , "Nearest Neighbor", 
                                                "Prognostic", "Mahalanobis"))

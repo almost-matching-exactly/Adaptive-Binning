@@ -297,7 +297,7 @@ get_CATEs <- function(inputs, estimators) {
       miqp_variance_out <- 
         est_MIQP_variance(train_df, test_df, test_treated, 
                           n_test_treated, train_covs, test_covs, n_train, p,
-                          lambda=10)
+                          alpha=2, lambda=10)
       CATEs[, i] <- miqp_variance_out$CATE
       bins[['MIQP-Variance']] <- miqp_variance_out$bins
     }
