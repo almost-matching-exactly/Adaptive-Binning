@@ -7,6 +7,9 @@ source('helpers.R')
 source('estimators.R')
 
 matching_sim <- function(n_sims = 10, n_units = 100, p = 3, n_train = floor(n_units / 2),
+                         estimators = c('Full Matching', 'Prognostic', 'CEM',
+                                        'Mahalanobis', 'Nearest Neighbor', 'Greedy',
+                                        'MIP-Explain', 'MIP-Predict', 'MIQP-Variance'),
                          X_dgp = NULL, e_dgp=NULL, HTE_dgp = NULL, y_dgp = NULL, ... ) {
   
   n_test <- n_units - n_train
@@ -50,11 +53,11 @@ matching_sim <- function(n_sims = 10, n_units = 100, p = 3, n_train = floor(n_un
     df <- cbind(data.frame(X), data.frame(Y = Y, treated = as.logical(Z)))
     
     inputs <- estimator_inputs(df, n_train, n_units)
-
+    
     this_sim_CATEs <-
       inputs %>%
-      get_CATEs() %>%
-      format_CATEs(HTE_true)
+      get_CATEs(estimators) %>%
+      format_CATEs(HTE_true, estimators)
     
     all_CATEs = rbind(all_CATEs, this_sim_CATEs)
     

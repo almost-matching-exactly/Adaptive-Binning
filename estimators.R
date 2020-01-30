@@ -1,6 +1,5 @@
-
 source('helpers.R')
- source("AB_MIPs.R")
+# source("AB_MIPs.R")
 
 require(MatchIt)
 require(cem)
@@ -233,15 +232,15 @@ est_MIQP_variance <- function(train_df, test_df,
   return(mip_cates)
 }
 
-get_CATEs <- function(inputs) {
-  n_estimators <- 9
-  n_MIPs <- 0
-  bins <- vector(mode = 'list', length = n_MIPs + 1)
-  ab_names <- c('Greedy')
-  if (n_MIPs > 0) {
-    ab_names <- c(ab_names, paste0(rep('MIP ', n_MIPs), 1:n_MIPs))
-  }
-  names(bins) <- ab_names
+get_CATEs <- function(inputs, estimators) {
+  n_estimators <- length(estimators)
+  # n_MIPs <- 0
+  # bins <- vector(mode = 'list', length = n_MIPs + 1)
+  # ab_names <- c('Greedy')
+  # if (n_MIPs > 0) {
+  #   ab_names <- c(ab_names, paste0(rep('MIP ', n_MIPs), 1:n_MIPs))
+  # }
+  # names(bins) <- ab_names
   
   c(df, f, n, n_train, p,
     train_df, train_covs, train_control, train_treated,
@@ -250,47 +249,93 @@ get_CATEs <- function(inputs) {
     bart_fit, counterfactuals) %<-% inputs
   
   CATEs <- matrix(nrow = n_test_treated, ncol = n_estimators)
-  CATEs[, 1] <- est_fullmatch(df, n, n_train, f)
-  CATEs[, 2] <- est_prog(test_df, counterfactuals)
-  CATEs[, 3] <- est_cem(df, n_train)
-  CATEs[, 4] <- est_mahal(df, n_train, f, ratio = 1)
-  CATEs[, 5] <- est_nn(df, n_train, f, ratio = 1)
-  greedy_out <- est_greedy(train_df, 
-                           test_df, 
-                           test_covs, 
-                           test_control, 
-                           test_treated, 
-                           n_test_treated, 
-                           p, 
-                           bart_fit)
-  CATEs[, 6] <- greedy_out$CATE
-  bins[['Greedy']] <- greedy_out$bins
+  for (i in 1:n_estimators) {
+    if (estimators[i] == 'Full Matching') {
+      CATEs[, i] <- est_fullmatch(df, n, n_train, f)    
+    }
+    else if (estimators[i] == 'Prognostic') {
+      CATEs[, i] <- est_prog(test_df, counterfactuals)
+    }
+    else if (estimators[i] == 'CEM') {
+      CATEs[, i] <- est_cem(df, n_train)
+    }
+    else if (estimators[i] == 'Mahalanobis') {
+      CATEs[, i] <- est_mahal(df, n_train, f, ratio = 1)
+    }
+    else if (estimators[i] == 'Nearest Neighbor') {
+      CATEs[, i] <- est_nn(df, n_train, f, ratio = 1)
+    }
+    else if (estimators[i] == 'Greedy') {
+      greedy_out <- est_greedy(train_df, 
+                               test_df, 
+                               test_covs, 
+                               test_control, 
+                               test_treated, 
+                               n_test_treated, 
+                               p, 
+                               bart_fit)
+      CATEs[, i] <- greedy_out$CATE
+    }
+    else if (estimators[i] == 'MIP-Predict') {
+      CATEs[, i] <- est_MIP_predict(train_df, test_df, test_treated, 
+                                    n_test_treated, train_covs, test_covs, n_train, p,
+                                    lambda1=10, lambda2=10)
+    }
+    else if (estimators[i] == 'MIP-Explain') {
+      CATEs[, i] <- est_MIP_explain(train_df, test_df, test_treated, 
+                                    n_test_treated, train_covs, test_covs, n_train, p,
+                                    lambda=10)
+    }
+    else if (estimators[i] == 'MIQP-Variance') {
+      CATEs[, i] <- est_MIQP_variance(train_df, test_df, test_treated, 
+                                      n_test_treated, train_covs, test_covs, n_train, p,
+                                      lambda=10)
+    }
+    else {
+      stop('Unrecognized Estimator')
+    }
+  }
   
-
-  # CATEs[, 7] <- est_MIP(df)$CATEs
-  # # bins[['MIP 1']] <- est_MIP(df)$bins
-  # MIP_predict_out <- est_MIP_predict(df)
-  # MIP_explain_out <- est_MIP_explain(df)
-  # MIQP_variance_out <- est_MIQP_predict(df)
+  # CATEs[, 2] <- est_prog(test_df, counterfactuals)
+  # CATEs[, 3] <- est_cem(df, n_train)
+  # CATEs[, 4] <- est_mahal(df, n_train, f, ratio = 1)
+  # CATEs[, 5] <- est_nn(df, n_train, f, ratio = 1)
+  # greedy_out <- est_greedy(train_df, 
+  #                          test_df, 
+  #                          test_covs, 
+  #                          test_control, 
+  #                          test_treated, 
+  #                          n_test_treated, 
+  #                          p, 
+  #                          bart_fit)
+  # CATEs[, 6] <- greedy_out$CATE
+  # bins[['Greedy']] <- greedy_out$bins
   # 
-  # CATEs[, 7] <- MIP_predict_out$CATE
-  # #bins[['MIP 1']] <- MIP_predict_out$bins
   # 
-  # CATEs[, 8] <- MIP_explain_out$CATE
-  # bins[['MIP 2']] <- MIP_explain_out$bins
-  # 
-  # CATEs[, 9] <- MIQP_variance_out$CATE
-  # bins[['MIP 3']] <- MIQP_variance_out$bins
-  # 
-  CATEs[, 7] <- est_MIP_predict(train_df, test_df, test_treated, 
-                                n_test_treated, train_covs, test_covs, n_train, p,
-                                lambda1=10, lambda2=10)
-  CATEs[, 8] <- est_MIP_explain(train_df, test_df, test_treated, 
-                                n_test_treated, train_covs, test_covs, n_train, p,
-                                lambda=10)
-  CATEs[, 9] <- est_MIQP_variance(train_df, test_df, test_treated, 
-                                  n_test_treated, train_covs, test_covs, n_train, p,
-                                  lambda=10)
+  # # CATEs[, 7] <- est_MIP(df)$CATEs
+  # # # bins[['MIP 1']] <- est_MIP(df)$bins
+  # # MIP_predict_out <- est_MIP_predict(df)
+  # # MIP_explain_out <- est_MIP_explain(df)
+  # # MIQP_variance_out <- est_MIQP_predict(df)
+  # # 
+  # # CATEs[, 7] <- MIP_predict_out$CATE
+  # # #bins[['MIP 1']] <- MIP_predict_out$bins
+  # # 
+  # # CATEs[, 8] <- MIP_explain_out$CATE
+  # # bins[['MIP 2']] <- MIP_explain_out$bins
+  # # 
+  # # CATEs[, 9] <- MIQP_variance_out$CATE
+  # # bins[['MIP 3']] <- MIQP_variance_out$bins
+  # # 
+  # CATEs[, 7] <- est_MIP_predict(train_df, test_df, test_treated, 
+  #                               n_test_treated, train_covs, test_covs, n_train, p,
+  #                               lambda1=10, lambda2=10)
+  # CATEs[, 8] <- est_MIP_explain(train_df, test_df, test_treated, 
+  #                               n_test_treated, train_covs, test_covs, n_train, p,
+  #                               lambda=10)
+  # CATEs[, 9] <- est_MIQP_variance(train_df, test_df, test_treated, 
+  #                                 n_test_treated, train_covs, test_covs, n_train, p,
+  #                                 lambda=10)
   # CATEs[, 8] <- est_caliper(f, df) # Doesn't work...? 
   return(CATEs)
 }
