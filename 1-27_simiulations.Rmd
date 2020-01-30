@@ -8,7 +8,7 @@ editor_options:
 ```{r setup, include=FALSE, warnings=FALSE}
 knitr::opts_chunk$set(echo = FALSE, warning=FALSE, message = FALSE, error=FALSE)
 setwd("/Users/marco/Dropbox/Duke/projects/FLAME-binning/Adaptive-Binning/")
-#source("AB_MIPs.R")
+source("AB_MIPs.R")
 library(ggplot2)
 library(reshape2)
 library(dbarts)
@@ -107,10 +107,10 @@ for (i in 1:n_test){
   message(paste("Matching unit", i, "of", n_test), "\r", appendLF = FALSE); flush.console()
   xi = x_test[i,]
 
-  mip_pars = setup_mip_predict(xi = xi, zi=1, yi=y_test[i],
-                               x_train=x_train, y_train = y_train, z_train=z_train,
-                               x_test =  x_test[-i, , drop=F],
-                               lambda1=10, lambda2=10, m=1, M=1e5)
+  mip_pars = setup_miqp_variance(xi = xi, 
+                                 x_train=x_train, y_train = y_train, z_train=z_train,
+                                 x_test =  x_test[-i, , drop=F],
+                                 lambda=100, m=1, M=1e5)
   sol = Rcplex(cvec=mip_pars$cvec, Amat=mip_pars$Amat,
                bvec=mip_pars$bvec, sense = mip_pars$sense,
                lb=mip_pars$lb, ub=mip_pars$ub,
