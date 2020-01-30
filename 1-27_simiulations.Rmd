@@ -85,46 +85,49 @@ ggplot(simdata) +
 ## 2D Example MIP-Predict
 
 ```{r "simple MIP-P p=2", cache=TRUE, results='hide'}
-n = 100
-n_train = 100
-n_test = 100
-p = 2
-x_train = matrix(rexp(n_train*p, 2), n_train, p)
-y_train = rowSums(log(x_train)) + rnorm(n_train, 0, 1)
-x_test = matrix(rexp(n_test*p, 2), n_test, p)
-y_test = rowSums(log(x_test)) + rnorm(n_test, 0, 1)
-z_train = rep(1, n_train)
-z_train[sample(1:n_train, n_train/2, replace = FALSE)] = 0
-z_test = rep(0, n_test)
-simdata = matrix(NA, n_test, 3* p + 2)
-simdata = data.frame(simdata)
-names(simdata) = c(paste("x",1:p, sep=""), 
-                   paste("a", 1:p, sep=""), 
-                   paste("b", 1:p, sep=""), "y", "yest")
-t1 = proc.time()[3]
-mip_outputs = list()
-for (i in 1:n_test){
-  message(paste("Matching unit", i, "of", n_test), "\r", appendLF = FALSE); flush.console()
-  xi = x_test[i,]
-
-  mip_pars = setup_mip_predict(xi = xi, zi=1, yi=y_test[i],
-                               x_train=x_train, y_train = y_train, z_train=z_train,
-                               x_test =  x_test[-i, , drop=F],
-                               lambda1=10, lambda2=10, m=1, M=1e5)
-  sol = Rcplex(cvec=mip_pars$cvec, Amat=mip_pars$Amat,
-               bvec=mip_pars$bvec, sense = mip_pars$sense,
-               lb=mip_pars$lb, ub=mip_pars$ub,
-               vtype = mip_pars$vtype, objsense = "max", control=list(trace=0))
-  mip_out = recover_pars(sol, n_train, n_test-1, p)
-  mip_outputs[[i]] = mip_out
-  yest = mean(y_test[-i][which(mip_out$w>=0.1)])
-  simdata[i, ] = c(xi, mip_out$a, mip_out$b, y_test[i], yest)
-}
-print(paste("100 matches took", round(proc.time()[3] - t1, 1)))
-save(mip_outputs, file='2d_mip_outputs.RData')
+  n = 100
+  n_train = 100
+  n_test = 100
+  p = 2
+  x_train = matrix(rexp(n_train*p, 2), n_train, p)
+  y_train = rowSums(log(x_train)) + rnorm(n_train, 0, 1)
+  x_test = matrix(rexp(n_test*p, 2), n_test, p)
+  y_test = rowSums(log(x_test)) + rnorm(n_test, 0, 1)
+  z_train = rep(1, n_train)
+  z_train[sample(1:n_train, n_train/2, replace = FALSE)] = 0
+  z_test = rep(0, n_test)
+  simdata = matrix(NA, n_test, 3* p + 2)
+  simdata = data.frame(simdata)
+  names(simdata) = c(paste("x",1:p, sep=""), 
+                     paste("a", 1:p, sep=""), 
+                     paste("b", 1:p, sep=""), "y", "yest")
+  t1 = proc.time()[3]
+  mip_outputs = list()
+  for (i in 1:n_test){
+    message(paste("Matching unit", i, "of", n_test), "\r", appendLF = FALSE); flush.console()
+    xi = x_test[i,]
+  
+    # mip_pars = setup_mip_predict(xi = xi, zi=1, yi=y_test[i],
+    #                              x_train=x_train, y_train = y_train, z_train=z_train,
+    #                              x_test =  x_test[-i, , drop=F],
+    #                              lambda1=10, lambda2=10, m=1, M=1e5)
+mip_pars = setup_miqp_variance(xi = xi, y_train = y_train, x_train = x_train,
+                                x_test =  x_test, lambda=100, alpha=0, m=1, M=1e5)
+    sol = Rcplex(cvec=mip_pars$cvec, Amat=mip_pars$Amat,
+                 bvec=mip_pars$bvec, sense = mip_pars$sense,
+                 lb=mip_pars$lb, ub=mip_pars$ub,
+                 vtype = mip_pars$vtype, objsense = "max", control=list(trace=0))
+    mip_out = recover_pars(sol, n_train, n_test-1, p)
+    mip_outputs[[i]] = mip_out
+    yest = mean(y_test[-i][which(mip_out$w>=0.1)])
+    simdata[i, ] = c(xi, mip_out$a, mip_out$b, y_test[i], yest)
+  }
+  print(paste("100 matches took", round(proc.time()[3] - t1, 1), "seconds."))
+# save(mip_outputs, file='2d_mip_outputs.RData')
 ```
 
 ```{r "simple MIP-P p=2 plot"}
+
 ggplot(simdata) + 
   geom_rect(aes(xmin=a1, ymin=a2, xmax=b1, ymax=b2), fill="grey", 
             color="black", size=0.5, alpha=0.3) + 
@@ -133,6 +136,42 @@ ggplot(simdata) +
   xlab("x1") + ylab("x2") +  labs(color="% Abs. error") +  theme_bw() + 
   theme(legend.position = c(0.9,0.5), 
         legend.background = element_rect(color="black", size=0.5))
+#ggsave("01-21_p=2_plot.png")
+```
+
+```{r}
+simdata %<>% mutate(id = 1:nrow(.))
+p <- 
+    ggplot(data = simdata) + 
+    geom_rect_interactive(aes(xmin = a1, xmax = b1, ymin = a2, ymax = b2,
+                              data_id = id),
+              fill = 'grey', color = 'NA', 
+              size = 0.5, alpha = 0) + 
+    geom_point_interactive(aes(x = x1, y = x2, 
+                               color=abs(yest - y)/mean(abs(y)), data_id = id)) + 
+  scale_color_gradient(low="blue", high="red") +
+  labs(x = 'x1', y = 'x2', color = "% Abs. Error") +
+  theme_bw()
+#E8C3D6
+#D8CADE
+#E9CCD1
+girafe(ggobj = p,
+         options = list(
+           opts_hover(
+           css = girafe_css(
+             css = 'fill:orange',
+             area = 'fill:#E8C3D6;fill-opacity:0.8',
+             point = 'fill:black;r:5;stroke:black'
+         ))))
+
+# ggplot(simdata) + 
+#   geom_rect_interactive(aes(xmin=a1, ymin=a2, xmax=b1, ymax=b2), fill="grey", 
+#             color="black", size=0.5, alpha=0.3) + 
+#   geom_point(aes(x=x1, y=x2, color=abs(yest - y)/mean(abs(y))), size=2) + 
+#   scale_color_gradient(low="blue", high="red") + 
+#   xlab("x1") + ylab("x2") +  labs(color="% Abs. error") +  theme_bw() + 
+#   theme(legend.position = c(0.9,0.5), 
+#         legend.background = element_rect(color="black", size=0.5))
 #ggsave("01-21_p=2_plot.png")
 ```
 
@@ -154,33 +193,7 @@ res$estimator = factor(res$estimator, levels=c("MIP-Explain", "MIP-Predict", "MI
 ```
 
 ```{r "sim 1 plot"}
-## Plot results
-group_means <- 
-  res %>%
-  group_by(estimator) %>%
-  summarize(mean = mean(abs(predicted - actual), na.rm = TRUE))
-
-baseline_estimators <- c('Greedy', 'MIP-Explain', 'MIP-Predict', 'MIQP-Variance')
-
-baseline_mean <- 
-  group_means %>%
-  filter(estimator %in% baseline_estimators) %>%
-  pull(mean) %>%
-  min()
-
-lower_than <- group_means$mean <= baseline_mean
-
-colors <- if_else(lower_than, 1, 2)
-
-colors = brewer.pal(3, "Set1")[if_else(lower_than, 2, 1)]
-colors[1:4] = brewer.pal(3, "Set1")[3]
-
-ggplot(data=res) + geom_violin(aes(y=abs(predicted - actual), x=estimator, fill=estimator),
-                               color="black", draw_quantiles = c(0.5), size=0.2) + 
-  scale_fill_manual(values = colors) + 
-  ylim(c(0, quantile(abs(res$predicted - res$actual), probs = .975, na.rm=T))) +
-  xlab("") + ylab("Mean absolute estimation error") + ggtitle("Estimation error") + 
-  theme_minimal() + theme(legend.position = "none")
+CATE_error_plot(res)
 ```
 
 
@@ -201,30 +214,7 @@ res$estimator = factor(res$estimator, levels=c("MIP-Explain", "MIP-Predict", "MI
 ```
 
 ```{r "sim 2 plot"}
-## Plot results
-group_means <- 
-  res %>%
-  group_by(estimator) %>%
-  summarize(mean = mean(abs(predicted - actual), na.rm = TRUE))
-
-baseline_estimators <- c('Greedy',  'MIP-Explain', 'MIP-Predict', 'MIQP-Variance')
-
-baseline_mean <- 
-  group_means %>%
-  filter(estimator %in% baseline_estimators) %>%
-  pull(mean) %>%
-  min()
-
-lower_than <- group_means$mean <= baseline_mean
-
-colors = brewer.pal(3, "Set1")[if_else(lower_than, 2, 1)]
-colors[1:4] = brewer.pal(3, "Set1")[3]
-
-ggplot(data=res) + geom_violin(aes(y=abs(predicted - actual), x=estimator, fill=estimator),
-                               color="black", draw_quantiles = c(0.5), size=0.2) + 
-  scale_fill_manual(values = colors) + 
-  xlab("") + ylab("Mean absolute estimation error") + ggtitle("Estimation error") + 
-  theme_minimal() + theme(legend.position = "none")
+CATE_error_plot(res)
 ```
 
 
@@ -243,38 +233,14 @@ Y_i &= \alpha + z_i \mathbb{I}_{x_{i1} > 0.5}5 + \epsilon_i.
 x_dgp = function(n, p){
   matrix(rexp(n * p, 0.5), n, p)
 }
-res = matching_sim(10, 200, 3, x_dgp=x_dgp)
+res = matching_sim(2, 200, 3, x_dgp=x_dgp)
 res$estimator = factor(res$estimator, levels=c("MIP-Explain", "MIP-Predict", "MIQP-Variance", 
                                                "Greedy", "CEM", "Full Matching" , "Nearest Neighbor", 
                                                "Prognostic", "Mahalanobis"))
 ```
 
 ```{r "sim 3 plot"}
-## Plot results
-group_means <- 
-  res %>%
-  group_by(estimator) %>%
-  summarize(mean = mean(abs(predicted - actual), na.rm = TRUE))
-
-baseline_estimators <- c('Greedy',  'MIP-Explain', 'MIP-Predict', 'MIQP-Variance')
-
-baseline_mean <- 
-  group_means %>%
-  filter(estimator %in% baseline_estimators) %>%
-  pull(mean) %>%
-  min()
-
-lower_than <- group_means$mean <= baseline_mean
-
-colors = brewer.pal(3, "Set1")[if_else(lower_than, 2, 1)]
-colors[1:4] = brewer.pal(3, "Set1")[3]
-
-ggplot(data=res) + geom_violin(aes(y=abs(predicted - actual), x=estimator, fill=estimator),
-                               color="black", draw_quantiles = c(0.5), size=0.2) + 
-  scale_fill_manual(values = colors) + 
-  ylim(c(0, quantile(abs(res$predicted - res$actual), probs = .975, na.rm=T))) +
-  xlab("") + ylab("Mean absolute estimation error") + ggtitle("Estimation error") + 
-  theme_minimal() + theme(legend.position = "none")
+CATE_error_plot(res)
 ```
 
 
@@ -306,31 +272,7 @@ res$estimator = factor(res$estimator, levels=c("MIP-Explain", "MIP-Predict", "MI
 ```
 
 ```{r "sim 4 plot"}
-## Plot results
-group_means <- 
-  res %>%
-  group_by(estimator) %>%
-  summarize(mean = mean(abs(predicted - actual), na.rm = TRUE))
-
-baseline_estimators <- c('Greedy',  'MIP-Explain', 'MIP-Predict', 'MIQP-Variance')
-
-baseline_mean <- 
-  group_means %>%
-  filter(estimator %in% baseline_estimators) %>%
-  pull(mean) %>%
-  min()
-
-lower_than <- group_means$mean <= baseline_mean
-
-colors = brewer.pal(3, "Set1")[if_else(lower_than, 2, 1)]
-colors[1:4] = brewer.pal(3, "Set1")[3]
-
-ggplot(data=res) + geom_violin(aes(y=abs(predicted - actual), x=estimator, fill=estimator),
-                               color="black", draw_quantiles = c(0.5), size=0.2) + 
-  scale_fill_manual(values = colors) + 
-  ylim(c(0, quantile(abs(res$predicted - res$actual), probs = .975, na.rm=T))) +
-  xlab("") + ylab("Mean absolute estimation error") + ggtitle("Estimation error") + 
-  theme_minimal() + theme(legend.position = "none")
+CATE_error_plot(res)
 ```
 
 
@@ -361,30 +303,6 @@ res$estimator = factor(res$estimator, levels=c("MIP-Explain", "MIP-Predict", "MI
 ```
 
 ```{r "sim 5 plot"}
-## Plot results
-group_means <- 
-  res %>%
-  group_by(estimator) %>%
-  summarize(mean = mean(abs(predicted - actual), na.rm = TRUE))
-
-baseline_estimators <- c('Greedy', 'MIP-Explain', 'MIP-Predict', 'MIQP-Variance')
-
-baseline_mean <- 
-  group_means %>%
-  filter(estimator %in% baseline_estimators) %>%
-  pull(mean) %>%
-  min()
-
-lower_than <- group_means$mean <= baseline_mean
-
-colors = brewer.pal(3, "Set1")[if_else(lower_than, 2, 1)]
-colors[1:4] = brewer.pal(3, "Set1")[3]
-
-ggplot(data=res) + geom_violin(aes(y=abs(predicted - actual), x=estimator, fill=estimator),
-                               color="black", draw_quantiles = c(0.5), size=0.2) + 
-  scale_fill_manual(values = colors) + 
-  ylim(c(0, quantile(abs(res$predicted - res$actual), probs = .9, na.rm=T))) +
-  xlab("") + ylab("Mean absolute estimation error") + ggtitle("Estimation error") + 
-  theme_minimal() + theme(legend.position = "none")
+CATE_error_plot(res)
 ```
 
