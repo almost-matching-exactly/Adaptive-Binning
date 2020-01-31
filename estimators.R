@@ -159,6 +159,7 @@ est_MIP_predict <- function(train_df, test_df,
                     train_covs, test_covs,
                     n_train, p, lambda=10, alpha=1, m=1, M=1e05) {
   MIP_cates <- vector('numeric', n_test_treated)
+  mip_bins = array(NA, c(n_test_treated, p, 2))
   message("Running MIP-Predict...")
   for (l in 1:n_test_treated){
     i = test_treated[l]
@@ -171,12 +172,13 @@ est_MIP_predict <- function(train_df, test_df,
                                   alpha=alpha, lambda=lambda, m=m, M=M)
     sol <- do.call(Rcplex, c(mip_pars, list(objsense="max", control=list(trace=0))))
     mip_out = recover_pars(sol, n_train, sum(test_df$treated==0), p)
-    
+    mip_bins[l, ,1] = mip_out$a
+    mip_bins[l, ,2] = mip_out$b
+
     MIP_cates[l] = test_df$Y[i] - mean(test_df$Y[test_df$treated==0][mip_out$w>=0.1])
   }
   message("\n")
-  return(list(CATE = MIP_cates,
-         bins = mip_out[c('a', 'b')]))
+  return(list(CATE = MIP_cates, bins = mip_bins))
 }
 
 
@@ -186,6 +188,7 @@ est_MIP_explain <- function(train_df, test_df,
                             n_train, p, lambda=10, alpha=0, m=1, M=1e05) {
   
   mip_cates = vector('numeric', n_test_treated)
+  mip_bins = array(NA, c(n_test_treated, p, 2))
   message("Running MIP-Explain...")
   bt = bart(data.frame(train_covs, treated=train_df$treated), 
             train_df$Y, keeptrees = T, verbose = FALSE)
@@ -202,10 +205,11 @@ est_MIP_explain <- function(train_df, test_df,
     mip_out = recover_pars(sol, n_train, sum(test_df$treated==0), p)
     
     mip_cates[l] = test_df$Y[i] - mean(test_df$Y[test_df$treated==0][mip_out$w>=0.1])
+    mip_bins[l, ,1] = mip_out$a
+    mip_bins[l, ,2] = mip_out$b
   }
   message("\n")
-  return(list(CATE = mip_cates,
-         bins = mip_out[c('a', 'b')]))
+  return(list(CATE = mip_cates, bins = mip_bins))
 }
 
 est_MIQP_variance <- function(train_df, test_df, 
@@ -214,7 +218,7 @@ est_MIQP_variance <- function(train_df, test_df,
                               n_train, p, lambda=10, alpha=1, m=1, M=1e05) {
   
   mip_cates = vector('numeric', n_test_treated)
-  
+  mip_bins = array(NA, c(n_test_treated, p, 2))
   message("Running MIQP-Variance")
   for (l in 1:n_test_treated){
     i = test_treated[l]
@@ -227,13 +231,14 @@ est_MIQP_variance <- function(train_df, test_df,
                                     x_test = as.matrix(test_covs[test_df$treated==0, ]),  
                                     alpha=alpha, lambda=lambda, m=m, M=M)
     sol <- do.call(Rcplex, c(mip_pars, list(objsense="max", control=list(trace=0))))
-    mip_out = recover_pars(sol, sum(train_df$treated==0), sum(test_df$treated==0), p)
+    mip_out = recover_pars(sol, n_train, sum(test_df$treated==0), p)
     
     mip_cates[l] = test_df$Y[i] - mean(test_df$Y[test_df$treated==0][mip_out$w>=0.1])
+    mip_bins[l, ,1] = mip_out$a
+    mip_bins[l, ,2] = mip_out$b
   }
   message("\n")
-  return(list(CATE = mip_cates,
-         bins = mip_out[c('a', 'b')]))
+  return(list(CATE = mip_cates, bins = mip_bins))
 }
 
 get_CATEs <- function(inputs, estimators, hyperparameters) {

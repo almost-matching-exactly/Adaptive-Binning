@@ -56,3 +56,7 @@ format_CATEs <- function(CATE_obj, true_CATE, estimators) {
     mutate(estimator = rep(estimators, each = nrow(.) / n_estimators))
   return(CATE_out)
 }
+
+make_mg <- function(X, lbs, ubs){
+  return(which(colMeans((t(X) <= ubs)*(t(X) >= lbs))==1))
+}

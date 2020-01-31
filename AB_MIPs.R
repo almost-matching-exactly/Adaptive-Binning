@@ -158,7 +158,7 @@ setup_miqp_variance = function(xi, y_train, x_train, x_test, z_train,
   # Objective: max c'X
   cvec = c(alpha * rep(1, p),                       # aij
            alpha * rep(-1, p),                      # bij
-           rep(1, n_test),                          # wij
+           rep(0, n_test),                          # wij
            rep(0, n_test * p),                      # qij
            rep(0, n_test * p),                      # rij
            rep(0, n_train * p),                     # uij

@@ -325,6 +325,40 @@ ggplot(ggdata) + geom_point(aes(x=alpha, y=MSE, color=estimator)) + facet_grid(l
 ```
 
 
+# MG Analysis
+
+```{r "MG analysis", cache=TRUE}
+c(df, HTE_true) %<-% simulate_data(200, 3)
+c(df, f, n, n_train, p,
+    train_df, train_covs, train_control, train_treated,
+    test_df, test_covs, test_control, test_treated, 
+    n_test_control, n_test_treated, 
+    bart_fit, counterfactuals) %<-% estimator_inputs(df, 100, 200)
+c(greedy_cates, greedy_bins) %<-% est_greedy(train_df, test_df, test_covs, test_control, test_treated,
+                                             n_test_treated, 3, bart_fit)
+c(miqp_cates, miqp_bins) %<-% est_MIQP_variance(train_df, test_df, test_treated, n_test_treated, train_covs, 
+                                                test_covs, n_train, p, lambda=1, alpha=2, m=1)
+ge = abs(HTE_true - greedy_cates)
+me = abs(HTE_true - miqp_cates)
+
+
+mip_pars =  setup_miqp_variance(xi = as.numeric(test_covs[i, ]),
+                                    y_train = train_df$Y,
+                                    x_train = train_covs,
+                                    z_train = train_df$treated,
+                                    x_test = as.matrix(test_covs[test_df$treated==0, ]),  
+                                    alpha=alpha, lambda=lambda, m=m, M=M)
+sol <- do.call(Rcplex, c(mip_pars, list(objsense="max", control=list(trace=0))))
+mip_out = recover_pars(sol, nrow(train_df), sum(test_df$treated==0), p)
+    
+```
+
+
+
+
+
+
+
 
 
 
