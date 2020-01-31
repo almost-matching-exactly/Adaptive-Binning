@@ -77,10 +77,6 @@ matching_sim <- function(n_sims = 10, n_units = 100, p = 3, n_train = floor(n_un
     this_sim_bins <- 
       est_out %>%
       extract2('bins')
-    # this_sim_CATEs <-
-    #   inputs %>%
-    #   get_CATEs(estimators) %>%
-    #   format_CATEs(HTE_true, estimators)
     
     all_CATEs <- rbind(all_CATEs, this_sim_CATEs)
     all_bins[[sim]] <- this_sim_bins

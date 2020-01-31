@@ -86,7 +86,9 @@ est_greedy <- function(train_df,
                        test_treated,
                        n_test_treated,
                        p,
-                       bart_fit) {
+                       bart_fit, 
+                       variation = 1,
+                       n_req_matches = 5) {
   # Initialize bins to be centered right on treated unit values 
   bins <- array(dim = c(n_test_treated, p, 2))
   bins[, , 1] <- as.matrix(test_df[test_treated, 1:p])
@@ -95,14 +97,18 @@ est_greedy <- function(train_df,
   # Indices of test units already matched to, for each test, treated unit
   # Every unit will trivially be in their own MG 
   already_matched <- as.list(test_treated)
-  
   message("Running Greedy AB...")
   for (i in 1:n_test_treated) {
     message(paste("Matching unit", i, "of", n_test_treated), "\r", appendLF = FALSE); flush.console()
     bin_copy <- matrix(bins[i, ,], ncol = 2) # Conversion to matrix handles case of 1 covariate
-    while (length(already_matched[[i]]) < 5) { 
+    while (length(already_matched[[i]]) < n_req_matches) { 
       # Find units closest along each axis
-      potential_matches <- setdiff(test_control, already_matched[[i]])
+      if (variation != 2) { ## Only expand to control units
+        potential_matches <- setdiff(test_control, already_matched[[i]])
+      }
+      else { ## Expand to any units 
+        potential_matches <- setdiff(1:nrow(test_df), already_matched[[i]])
+      }
       bin_var <- vector('numeric', length = p)
       proposed_bin <- vector('list', length = p)
       for (j in 1:p) {
