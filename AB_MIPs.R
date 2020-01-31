@@ -1,13 +1,13 @@
 library(Rcplex)
 
-setup_mip_explain = function(fhat, xi, y_test, x_test, lambda=1, m=1, M=1e10){
+setup_mip_explain = function(fhat, xi, y_test, x_test, lambda=1, alpha=0, m=1, M=1e10){
   Nop = length(y_test)
   p = length(xi)
   
   #Unit level mip:
   # Objective: max c'X
-  cvec = c(rep(0, p),                            # aij
-           rep(0, p),                            # bij
+  cvec = c(alpha*rep(1, p),                      # aij
+           alpha*rep(-1, p),                     # bij
            1-lambda*abs(fhat - y_test),          # wij
            rep(0, Nop * p),                      # uij
            rep(0, Nop * p)                       # vij
@@ -425,8 +425,8 @@ setup_miqp_variance = function(xi, y_train, x_train, x_test, z_train,
   list(Amat=Amat, bvec=bvec, cvec=cvec, Qmat=Qmat, lb=lbs, ub=ubs, vtype=vtype, sense=svec)
 }
 
-setup_mip_predict = function(xi, yi, zi, y_train, x_train, z_train, x_test, lambda1=1, 
-                             lambda2=1, alpha=0,  m=1, M=1e10){
+setup_mip_predict = function(xi, yi, zi, y_train, x_train, z_train, x_test,
+                             lambda=1, alpha=0,  m=1, M=1e10){
   n_test = nrow(x_test)
   n_train = nrow(x_train)
   p = length(xi)
@@ -440,8 +440,7 @@ setup_mip_predict = function(xi, yi, zi, y_train, x_train, z_train, x_test, lamb
            rep(0, n_test * p),                      # rij
            rep(0, n_train * p),                     # uij
            rep(0, n_train * p),                     # vij
-           {- lambda1 * abs(y_train - yi) * abs(zi - z_train)
-            - lambda2 * abs(y_train - yi) * (1-abs(zi - z_train))}             # sk
+            - lambda * abs(y_train - yi) * (1-abs(zi - z_train))             # sk
           )
   
   a_start = 0
