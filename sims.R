@@ -8,7 +8,7 @@ source('estimators.R')
 source('plot_results.R')
  
 simulate_data <- function(n_units=100, p=3, n_train=floor(n_units/2), 
-                          X_dgp=NULL, e_dgp=NULL, HTE_dgp=NULL, y_dgp=NULL){
+                          X_dgp=NULL, e_dgp=NULL, y_dgp=NULL){
    n_test <- n_units - n_train
   # n_estimators <- 7 # Full Matching, Prognostic, CEM, Mahalanobis, Propensity Score, Greedy, MIP
 
@@ -33,35 +33,34 @@ simulate_data <- function(n_units=100, p=3, n_train=floor(n_units/2),
   Z <- rbinom(n_units, 1, e)
   
   ## Generate outcome 
-  if(is.null(HTE_dgp))
-    HTE <- (X[, 1] > 1.5) * beta_tilde * Z
-  else
-    HTE <- HTE_dgp(X, Z)
-
-  # HTE <- beta_tilde * Z
-  HTE_true <- HTE[intersect((n_train + 1):n_units, which(Z == 1))]
-
-  if(is.null(y_dgp))
-    Y <- beta0 + HTE + rnorm(n_units, 0, 1)
-  else
-    Y <- y_dgp(X, Z, HTE)
-
+  if(is.null(y_dgp)){
+    eps <- rnorm(n_units, 0, 1)
+    Y1 <- beta0 + (X[, 1] > 1.5) * beta_tilde + eps
+    Y0 <- beta0 + eps
+  }else{
+    eps <- rnorm(n_units, 0, 1)
+    Y1 <- y_dgp(X, rep(1, n_units), eps)
+    Y0 <- y_dgp(X, rep(0, n_units), eps)
+  }
+  HTE <- Y1 - Y0
+  Y = Y1 * Z + Y0 * (1-Z)
+  
   df <- cbind(data.frame(X), data.frame(Y = Y, treated = as.logical(Z)))
-  return(list(df, HTE_true))
+  return(list(df, HTE))
 }
 
 matching_sim <- function(n_sims = 10, n_units = 100, p = 3, n_train = floor(n_units / 2),
                          estimators = c('Full Matching', 'Prognostic', 'CEM',
                                         'Mahalanobis', 'Nearest Neighbor', 'Greedy',
                                         'MIP-Explain', 'MIP-Predict', 'MIQP-Variance'),
-                         X_dgp = NULL, e_dgp=NULL, HTE_dgp = NULL, y_dgp = NULL,
+                         X_dgp = NULL, e_dgp=NULL, y_dgp = NULL,
                          lambda = 1, alpha=1, m=1, M=1e5) {
   all_CATEs <- NULL
   all_bins <- vector('list', length = n_sims)
   
   for (sim in 1:n_sims) {
-    c(df, HTE_true) %<-% simulate_data(n_units, p, n_train, X_dgp, e_dgp, HTE_dgp, y_dgp)  
-  
+    c(df, HTE) %<-% simulate_data(n_units, p, n_train, X_dgp, e_dgp, y_dgp)  
+    
     inputs <- estimator_inputs(df, n_train, n_units)
     hyperparameters <- list(lambda, alpha, m, M)
       
@@ -69,10 +68,12 @@ matching_sim <- function(n_sims = 10, n_units = 100, p = 3, n_train = floor(n_un
       inputs %>%
       get_CATEs(estimators, hyperparameters)
     
+    HTE_test_treated = HTE[inputs[["test_treated"]]]
+    
     this_sim_CATEs <- 
       est_out %>%
       extract2('CATEs') %>%
-      format_CATEs(HTE_true, estimators)
+      format_CATEs(HTE_test_treated, estimators)
     
     this_sim_bins <- 
       est_out %>%
