@@ -1,4 +1,4 @@
-# Libraries ---------------------------------------------------------------
+ # Libraries ---------------------------------------------------------------
 require(beepr)
 require(zeallot)
 require(tidyverse)
@@ -11,7 +11,8 @@ matching_sim <- function(n_sims = 10, n_units = 100, p = 3, n_train = floor(n_un
                          estimators = c('Full Matching', 'Prognostic', 'CEM',
                                         'Mahalanobis', 'Nearest Neighbor', 'Greedy',
                                         'MIP-Explain', 'MIP-Predict', 'MIQP-Variance'),
-                         X_dgp = NULL, e_dgp=NULL, HTE_dgp = NULL, y_dgp = NULL, ... ) {
+                         X_dgp = NULL, e_dgp=NULL, HTE_dgp = NULL, y_dgp = NULL,
+                         lambda = 1, alpha=1, m=1, M=1e5) {
   
   n_test <- n_units - n_train
   # n_estimators <- 7 # Full Matching, Prognostic, CEM, Mahalanobis, Propensity Score, Greedy, MIP
@@ -29,12 +30,12 @@ matching_sim <- function(n_sims = 10, n_units = 100, p = 3, n_train = floor(n_un
     if (is.null(X_dgp))
       X <- matrix(runif(p * n_units, 0, 5), nrow = n_units)
     else
-      X <- X_dgp(n, p, ...)
+      X <- X_dgp(n, p)
     #X <- matrix(rexp(p * n_units, 0.5), nrow = n_units)
     if(is.null(e_dgp))
       e <- expit(.01, X %*% beta)
     else
-      e <- e_dgp(X, ...)
+      e <- e_dgp(X)
     
     Z <- rbinom(n_units, 1, e)
     
@@ -42,7 +43,7 @@ matching_sim <- function(n_sims = 10, n_units = 100, p = 3, n_train = floor(n_un
     if(is.null(HTE_dgp))
       HTE <- (X[, 1] > 1.5) * beta_tilde * Z
     else
-      HTE <- HTE_dgp(X, Z, ...)
+      HTE <- HTE_dgp(X, Z)
 
     # HTE <- beta_tilde * Z
     HTE_true <- HTE[intersect((n_train + 1):n_units, which(Z == 1))]
@@ -50,15 +51,16 @@ matching_sim <- function(n_sims = 10, n_units = 100, p = 3, n_train = floor(n_un
     if(is.null(y_dgp))
       Y <- alpha + HTE + rnorm(n_units, 0, 1)
     else
-      Y <- y_dgp(X, Z, HTE, ...)
+      Y <- y_dgp(X, Z, HTE)
 
     df <- cbind(data.frame(X), data.frame(Y = Y, treated = as.logical(Z)))
     
     inputs <- estimator_inputs(df, n_train, n_units)
-    
+    hyperparameters <- list(lambda, alpha, m, M)
+      
     est_out <- 
       inputs %>%
-      get_CATEs(estimators)
+      get_CATEs(estimators, hyperparameters)
     
     this_sim_CATEs <- 
       est_out %>%

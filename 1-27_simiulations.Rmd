@@ -7,8 +7,8 @@ editor_options:
 
 ```{r setup, include=FALSE, warnings=FALSE}
 knitr::opts_chunk$set(echo = FALSE, warning=FALSE, message = FALSE, error=FALSE)
-setwd("/Users/marco/Dropbox/Duke/projects/FLAME-binning/Adaptive-Binning/")
-#source("AB_MIPs.R")
+setwd("/home/marco/Dropbox/Duke/projects/FLAME-binning/Adaptive-Binning/")
+source("AB_MIPs.R")
 library(ggplot2)
 library(reshape2)
 library(dbarts)
@@ -67,7 +67,6 @@ for (i in 1:n){
               "total:", round(t4 - t1), "seconds"))
   
 }
-save(mip_outputs, file = '1d_miqp_output.RData')
 ```
 
 ```{r "simple MIQP-V p=1 plot"}
@@ -82,48 +81,45 @@ ggplot(simdata) +
 
 ```
 
-## 2D Example MIP-Predict
+## 2D Example MIQP-Variance
 
 ```{r "simple MIP-P p=2", cache=TRUE, results='hide'}
-  n = 100
-  n_train = 100
-  n_test = 100
-  p = 2
-  x_train = matrix(rexp(n_train*p, 2), n_train, p)
-  y_train = rowSums(log(x_train)) + rnorm(n_train, 0, 1)
-  x_test = matrix(rexp(n_test*p, 2), n_test, p)
-  y_test = rowSums(log(x_test)) + rnorm(n_test, 0, 1)
-  z_train = rep(1, n_train)
-  z_train[sample(1:n_train, n_train/2, replace = FALSE)] = 0
-  z_test = rep(0, n_test)
-  simdata = matrix(NA, n_test, 3* p + 2)
-  simdata = data.frame(simdata)
-  names(simdata) = c(paste("x",1:p, sep=""), 
-                     paste("a", 1:p, sep=""), 
-                     paste("b", 1:p, sep=""), "y", "yest")
-  t1 = proc.time()[3]
-  mip_outputs = list()
-  for (i in 1:n_test){
-    message(paste("Matching unit", i, "of", n_test), "\r", appendLF = FALSE); flush.console()
-    xi = x_test[i,]
-  
-    # mip_pars = setup_mip_predict(xi = xi, zi=1, yi=y_test[i],
-    #                              x_train=x_train, y_train = y_train, z_train=z_train,
-    #                              x_test =  x_test[-i, , drop=F],
-    #                              lambda1=10, lambda2=10, m=1, M=1e5)
-mip_pars = setup_miqp_variance(xi = xi, y_train = y_train, x_train = x_train,
-                                x_test =  x_test, lambda=100, alpha=0, m=1, M=1e5)
-    sol = Rcplex(cvec=mip_pars$cvec, Amat=mip_pars$Amat,
-                 bvec=mip_pars$bvec, sense = mip_pars$sense,
-                 lb=mip_pars$lb, ub=mip_pars$ub,
-                 vtype = mip_pars$vtype, objsense = "max", control=list(trace=0))
-    mip_out = recover_pars(sol, n_train, n_test-1, p)
-    mip_outputs[[i]] = mip_out
-    yest = mean(y_test[-i][which(mip_out$w>=0.1)])
-    simdata[i, ] = c(xi, mip_out$a, mip_out$b, y_test[i], yest)
-  }
-  print(paste("100 matches took", round(proc.time()[3] - t1, 1), "seconds."))
-# save(mip_outputs, file='2d_mip_outputs.RData')
+n = 100
+n_train = 100
+n_test = 100
+p = 2
+x_train = matrix(rexp(n_train*p, 2), n_train, p)
+y_train = rowSums(log(x_train)) #+ rnorm(n_train, 0, 1)
+x_test = matrix(rexp(n_test*p, 2), n_test, p)
+y_test = rowSums(log(x_test)) #+ rnorm(n_test, 0, 1)
+z_train = rep(1, n_train)
+z_train[sample(1:n_train, n_train/2, replace = FALSE)] = 0
+z_test = rep(0, n_test)
+simdata = matrix(NA, n_test, 3* p + 2)
+simdata = data.frame(simdata)
+names(simdata) = c(paste("x",1:p, sep=""), 
+                   paste("a", 1:p, sep=""), 
+                   paste("b", 1:p, sep=""), "y", "yest")
+t1 = proc.time()[3]
+mip_outputs = list()
+for (i in 1:n_test){
+  message(paste("Matching unit", i, "of", n_test), "\r", appendLF = FALSE); flush.console()
+  xi = x_test[i,]
+
+  mip_pars = setup_miqp_variance(xi = xi, 
+                                 x_train=x_train, y_train = y_train, z_train=z_train,
+                                 x_test =  x_test[-i, , drop=F],
+                                 lambda=3, alpha=1, m=1, M=1e5)
+  sol = Rcplex(cvec=mip_pars$cvec, Amat=mip_pars$Amat, Qmat = mip_pars$Qmat,
+               bvec=mip_pars$bvec, sense = mip_pars$sense,
+               lb=mip_pars$lb, ub=mip_pars$ub,
+               vtype = mip_pars$vtype, objsense = "max", control=list(trace=0))
+  mip_out = recover_pars(sol, n_train, n_test-1, p)
+  mip_outputs[[i]] = mip_out
+  yest = mean(y_test[-i][which(mip_out$w>=0.1)])
+  simdata[i, ] = c(xi, mip_out$a, mip_out$b, y_test[i], yest)
+}
+print(paste("100 matches took", round(proc.time()[3] - t1, 1)))
 ```
 
 ```{r "simple MIP-P p=2 plot"}
@@ -132,6 +128,7 @@ ggplot(simdata) +
   geom_rect(aes(xmin=a1, ymin=a2, xmax=b1, ymax=b2), fill="grey", 
             color="black", size=0.5, alpha=0.3) + 
   geom_point(aes(x=x1, y=x2, color=abs(yest - y)/mean(abs(y))), size=2) + 
+  geom_raster(aes(x=x1, y=x2, fill=y)) + 
   scale_color_gradient(low="blue", high="red") + 
   xlab("x1") + ylab("x2") +  labs(color="% Abs. error") +  theme_bw() + 
   theme(legend.position = c(0.9,0.5), 
@@ -188,7 +185,7 @@ Y_i &= \alpha + z_i \mathbb{I}_{x_{i1} > 0.5}5 + \epsilon_i.
 \end{align*}
 
 ```{r "sim 1", cache=T}
-res = matching_sim(10, 200, 2)
+res = matching_sim(10, 200, 3, lambda=1, alpha=-2 )
 res$estimator = factor(res$estimator, levels=c("MIP-Explain", "MIP-Predict", "MIQP-Variance", "Greedy", "CEM", "Full Matching" , "Nearest Neighbor", "Prognostic", "Mahalanobis"))
 ```
 
@@ -265,7 +262,7 @@ HTE_dgp = function(X, Z){
 y_dgp = function(X, Z, HTE){
   return(2 + 5 * Z + HTE + rnorm(nrow(X), 0, 1))
 }
-res = matching_sim(1, 500, 3, HTE_dgp = HTE_dgp, y_dgp=y_dgp)
+res = matching_sim(10, 200, 3, HTE_dgp = HTE_dgp, y_dgp=y_dgp,lambda=1, alpha=-2)
 res$estimator = factor(res$estimator, levels=c("MIP-Explain", "MIP-Predict", "MIQP-Variance", 
                                                "Greedy", "CEM", "Full Matching" , "Nearest Neighbor", 
                                                "Prognostic", "Mahalanobis"))
@@ -305,4 +302,29 @@ res$estimator = factor(res$estimator, levels=c("MIP-Explain", "MIP-Predict", "MI
 ```{r "sim 5 plot"}
 CATE_error_plot(res)
 ```
+
+
+# Hyperparam Comparisons
+
+```{r "hp comparison", cache=TRUE}
+lambdas = 1:5
+alphas = -5:5
+simdata = NULL
+for(lambda in lambdas){
+  for (alpha in alphas){
+    res = matching_sim(5 , 100, p=3, alpha=alpha, lambda=lambda)
+    res = summarize_CATEs(res)
+    simdata = rbind(simdata, data.frame(res, lambda=rep(lambda, nrow(res)), alpha=rep(alpha, nrow(res))))
+  }
+}
+```
+
+```{r "hp plot"}
+ggdata =simdata[simdata$estimator %in% c("MIP-Explain", "MIP-Predict", "MIQP-Variance"), ]
+ggplot(ggdata) + geom_point(aes(x=alpha, y=MSE, color=estimator)) + facet_grid(lambda~.)
+```
+
+
+
+
 
