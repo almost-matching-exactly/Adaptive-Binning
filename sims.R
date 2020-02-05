@@ -52,9 +52,10 @@ simulate_data <- function(n_units=100, p=3, n_train=floor(n_units/2),
 matching_sim <- function(n_sims = 10, n_units = 100, p = 3, n_train = floor(n_units / 2),
                          estimators = c('Full Matching', 'Prognostic', 'CEM',
                                         'Mahalanobis', 'Nearest Neighbor', 'Greedy',
-                                        'MIP-Explain', 'MIP-Predict', 'MIQP-Variance'),
+                                        'MIP-Explain', 'MIP-Predict', 'MIQP-Variance',
+                                        'MIQP-Fhat'),
                          X_dgp = NULL, e_dgp=NULL, y_dgp = NULL,
-                         lambda = 1, alpha=1, m=1, M=1e5) {
+                         lambda = 1, alpha=1, beta=1, gamma=1, m=1, M=1e5) {
   all_CATEs <- NULL
   all_bins <- vector('list', length = n_sims)
   
@@ -62,7 +63,7 @@ matching_sim <- function(n_sims = 10, n_units = 100, p = 3, n_train = floor(n_un
     c(df, HTE) %<-% simulate_data(n_units, p, n_train, X_dgp, e_dgp, y_dgp)  
     
     inputs <- estimator_inputs(df, n_train, n_units)
-    hyperparameters <- list(lambda, alpha, m, M)
+    hyperparameters <- list(lambda, alpha, beta, gamma, m, M)
       
     est_out <- 
       inputs %>%

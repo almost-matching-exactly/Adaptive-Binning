@@ -38,6 +38,7 @@ summarize_CATEs <- function(all_CATEs) {
   all_CATEs %>%
     group_by(estimator) %>%
     summarize(MAE = mean(abs(actual - predicted), na.rm = TRUE),
+              MAE_pct_approx = mean(abs(actual - predicted)/abs(actual +1), na.rm = TRUE)*100,
               percent_missing = 100 * mean(is.na(predicted))) %>%
     arrange(MAE) %>%
     return()

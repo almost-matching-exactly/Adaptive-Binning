@@ -141,29 +141,31 @@ setup_mip_explain = function(fhat, xi, y_test, x_test, lambda=1, alpha=0, m=1, M
   bvec = c(b2, b3, b4, b5, b6, b7, b8, b9, b10)
   svec = c(s2, s3, s4, s5, s6, s7, s8, s9, s10)
   
-  lbs = c(apply(x_test, 2, min)-1/M, apply(x_test, 2, min)-1/M, rep(0, Nop),  rep(0, Nop * p), rep(0, Nop * p))
-  ubs = c(apply(x_test, 2, max)+1/M, apply(x_test, 2, max)+1/M, rep(1, Nop),  rep(1, Nop * p), rep(1, Nop * p))
+  lbs = c(apply(x_test, 2, min)-1/M, apply(x_test, 2, min)-1/M, 
+          rep(0, Nop),  rep(0, Nop * p), rep(0, Nop * p))
+  ubs = c(apply(x_test, 2, max)+1/M, apply(x_test, 2, max)+1/M, 
+          rep(1, Nop),  rep(1, Nop * p), rep(1, Nop * p))
   
   vtype = c(rep("C", p), rep("C", p), rep("B", Nop), rep("B", Nop * p), rep("B", Nop * p))
   list(Amat=Amat, bvec=bvec, cvec=cvec, lb=lbs, ub=ubs, vtype=vtype, sense=svec)
 }
 
 setup_miqp_variance = function(xi, y_train, x_train, x_test, z_train, 
-                               lambda=1, alpha=0,  m=1, M=1e10){
+                               lambda=1, alpha=0, beta=0, gamma=0, m=1, M=1e10){
   n_test = nrow(x_test)
   n_train = nrow(x_train)
   p = length(xi)
   
   #Unit level mip:
   # Objective: max c'X
-  cvec = c(alpha * rep(1, p),                       # aij
-           alpha * rep(-1, p),                      # bij
-           rep(0, n_test),                          # wij
+  cvec = c(alpha * rep(-1, p),                      # aij
+           alpha * rep(1, p),                       # bij
+           beta * rep(1, n_test),                   # wij
            rep(0, n_test * p),                      # qij
            rep(0, n_test * p),                      # rij
            rep(0, n_train * p),                     # uij
            rep(0, n_train * p),                     # vij
-           rep(1, n_train)                          # sk
+           gamma * rep(1, n_train)                  # sk
           )
   
   a_start = 0
@@ -178,7 +180,7 @@ setup_miqp_variance = function(xi, y_train, x_train, x_test, z_train,
   
   Qmat = matrix(0, n_vars, n_vars)
   Qmat[(s_start+1):n_vars, (s_start+1):n_vars] = 
-    outer(y_train, y_train, FUN=function(x1, x2) - lambda * sqrt((x1 - x2)^2)) * 
+    outer(y_train, y_train, FUN=function(y1, y2) - lambda * abs(y1 - y2)) * 
     outer(z_train, z_train, FUN=function(z1, z2) (1-abs(z1 - z2)))
 
   # Constraint 2 a_j < x_j 
@@ -703,6 +705,169 @@ setup_mip_predict = function(xi, yi, zi, y_train, x_train, z_train, x_test,
             rep("B", n_test * p), rep("B", n_test * p),
             rep("B", n_train * p), rep("B", n_train * p), rep("B", n_train))
   list(Amat=Amat, bvec=bvec, cvec=cvec, lb=lbs, ub=ubs, vtype=vtype, sense=svec)
+}
+
+
+setup_miqp_fhat = function(xi, fhat, x_test, lambda=1, alpha=1, beta=1, m=1, M=1e10){
+  
+  n_test = length(fhat)
+  p = length(xi)
+  
+  #Unit level mip:
+  # Objective: max c'X
+  cvec = c(alpha * rep(-1, p),                      # aij
+           alpha * rep(1, p),                       # bij
+           beta * rep(1, n_test),                   # wij
+           rep(0, n_test * p),                      # qij
+           rep(0, n_test * p)                       # rij
+  )
+  
+  a_start = 0
+  b_start = p
+  w_start = b_start + p
+  q_start = w_start + n_test
+  r_start = q_start + n_test * p
+  n_vars = length(cvec)
+  
+  Qmat = matrix(0, n_vars, n_vars)
+  Qmat[(w_start+1):q_start, (w_start+1):q_start] = 
+    outer(fhat, fhat, FUN=function(y1, y2) - lambda * abs(y1 - y2))
+  
+  # Constraint 2 a_j < x_j 
+  a2 = matrix(0, p, n_vars)
+  for (j in 1:p){
+    a2[j, a_start + j] = 1
+  }
+  rownames(a2) = rep("C2", nrow(a2))
+  b2 = xi
+  names(b2) = rep("C2", length(b2))
+  s2 = rep("L", p)
+  
+  # Constraint 3 -b_j < -x_j 
+  a3 =  matrix(0, p, n_vars)
+  for (j in 1:p){
+    a3[j, b_start + j] = 1
+  }
+  rownames(a3) = rep("C3", nrow(a3))
+  b3 = xi
+  names(b3) = rep("C3", length(b3))
+  s3 = rep("G", p)
+  
+  ### Test set constraints ###
+  # Constraint 10: qikj = 0 if xkj < aij, either 0 or 1 otherwise
+  a10 = matrix(0, n_test * p, n_vars)
+  b10 = rep(NA, n_test * p)
+  l = 1
+  for (k in 1:n_test){
+    for (j in 1:p){
+      a10[l, q_start + l] = M
+      a10[l, a_start + j] = 1 
+      b10[l] = x_test[k, j] + M - 1/M
+      l = l + 1
+    }
+  }
+  rownames(a10) = rep("C10", nrow(a10))
+  names(b10) = rep("C10", length(b10))
+  s10 = rep("L", n_test * p)
+  
+  # Constraint 11: qikj = 1 if xkj > aij, either 0 or 1 otherwise
+  a11 = matrix(0, n_test * p, n_vars)
+  b11 = rep(NA, n_test * p)
+  l = 1
+  for (k in 1:n_test){
+    for (j in 1:p){
+      a11[l, q_start + l] = -M
+      a11[l, a_start + j] = -1 
+      b11[l] = - x_test[k, j] - 1/M
+      l = l + 1
+    }
+  }
+  rownames(a11) = rep("C11", nrow(a11))
+  names(b11) = rep("C11", length(b11))
+  s11 = rep("L", n_test * p)
+  
+  # Constraint 12: rikj = 0 if xkj > bij, either 0 or 1 otherwise
+  a12 = matrix(0, n_test * p, n_vars)
+  b12 = rep(NA, n_test * p)
+  l = 1
+  for (k in 1:n_test){
+    for (j in 1:p){
+      a12[l, r_start + l] = M
+      a12[l, b_start + j] = -1 
+      b12[l] = -x_test[k, j] + M - 1/M
+      l = l + 1
+    }
+  }
+  rownames(a12) = rep("C12", nrow(a12))
+  names(b12) = rep("C12", length(b12))
+  s12 = rep("L", n_test * p)
+  
+  # Constraint 13: rikj = 1if xkj < bij, either 0 or 1 otherwise
+  a13 = matrix(0, n_test * p, n_vars)
+  b13 = rep(NA, n_test * p)
+  l = 1
+  for (k in 1:n_test){
+    for (j in 1:p){
+      a13[l, r_start + l] = -M
+      a13[l, b_start + j] = 1 
+      b13[l] = x_test[k, j] - 1/M
+      l = l + 1
+    }
+  }
+  rownames(a13) = rep("C13", nrow(a13))
+  names(b13) = rep("C13", length(b13))
+  s13 = rep("L", n_test * p)
+  
+  # Constraint 14: wik = 1 if sum over j uijk + sum over j vijk = 4P, 
+  # either 0 or 1 otherwise
+  a14 = matrix(0, n_test,  n_vars)
+  b14 = rep(NA, n_test)
+  for (k in 1:n_test){
+    a14[k, w_start + k] = -M
+    a14[k, (r_start + 1 + p*(k-1)):(r_start + p*k)] = 1 
+    a14[k, (q_start + 1 + p*(k-1)):(q_start + p*k)] = 1 
+    b14[k] = 2 * p - 1
+  }
+  rownames(a14) = rep("C14", nrow(a14))
+  names(b14) = rep("C14", length(b14))
+  s14 = rep("L", n_test)
+  
+  # Constraint 15: wik = 0 if sum over j uijk + sum over j vijk < 2P, 
+  # either 0 or 1 otherwise
+  a15 = matrix(0, n_test, n_vars)
+  b15 = rep(NA, n_test)
+  for (k in 1:n_test){
+    a15[k, w_start + k] = M
+    a15[k, (r_start + 1 + p*(k-1)):(r_start + p*k)] = -1 
+    a15[k, (q_start + 1 + p*(k-1)):(q_start + p*k)] = -1 
+    b15[k] = -2 * p + M
+  }
+  rownames(a15) = rep("C15", nrow(a15))
+  names(b15) = rep("C15", length(b15))
+  s15 = rep("L", n_test)
+  
+  # Constraint 16 sum(wik) >= m
+  a16 = matrix(0, 1, n_vars)
+  a16[1, (w_start+1):(w_start + n_test)] = 1
+  rownames(a16) = "C16"
+  b16 = m
+  names(b16) = "C16"
+  s16 = "G"
+  
+  Amat = rbind(a2, a3, a10, a11, a12, a13, a14, a15, a16)
+  bvec = c(b2, b3, b10, b11, b12, b13, b14, b15, b16)
+  svec = c(s2, s3, s10, s11, s12, s13, s14, s15, s16)
+  
+  lbs = c(sapply(1:p, function(j) min(x_test[, j]))-1/M, 
+          sapply(1:p, function(j) min(x_test[, j]))-1/M, 
+          rep(0, n_test),  rep(0, n_test * p), rep(0, n_test * p))
+  ubs = c(sapply(1:p, function(j) max(x_test[, j]))+1/M, 
+          sapply(1:p, function(j) max(x_test[, j]))+1/M, 
+          rep(1, n_test),  rep(1, n_test * p), rep(1, n_test * p))
+  
+  vtype = c(rep("C", p), rep("C", p), rep("B", n_test), 
+            rep("B", n_test * p), rep("B", n_test * p))
+  list(Amat=Amat, bvec=bvec, cvec=cvec, Qmat=Qmat, lb=lbs, ub=ubs, vtype=vtype, sense=svec)
 }
 
 

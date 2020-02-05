@@ -7,7 +7,7 @@ editor_options:
 
 ```{r setup, include=FALSE, warnings=FALSE}
 knitr::opts_chunk$set(echo = FALSE, warning=FALSE, message = FALSE, error=FALSE)
-setwd("/home/marco/Dropbox/Duke/projects/FLAME-binning/Adaptive-Binning/")
+setwd("/Users/marco/Dropbox/Duke/projects/FLAME-binning/Adaptive-Binning/")
 source("AB_MIPs.R")
 library(ggplot2)
 library(reshape2)
@@ -47,8 +47,10 @@ for (i in 1:n){
   xi = x_test[i,]
   
   t1 = proc.time()[3]
-  mip_pars = setup_miqp_variance(xi = xi, y_train = y_train, x_train = x_train, 
-                                x_test =  x_test, lambda=2, alpha=0, m=1, M=1e5)
+  xg = xgboost(data = x_train, label = y_train, nrounds = 50, verbose = F)
+  fhat = predict(xg, newdata = x_test)
+  mip_pars = setup_miqp_fhat(xi = xi, fhat = fhat,  x_test =  x_test, 
+                             lambda=2, alpha=1, beta=0, m=1, M=1e5)
   t2 = proc.time()[3]
   sol = Rcplex(cvec=mip_pars$cvec, Amat=mip_pars$Amat, Qmat = mip_pars$Qmat,
                bvec=mip_pars$bvec, sense = mip_pars$sense,
@@ -105,11 +107,10 @@ mip_outputs = list()
 for (i in 1:n_test){
   message(paste("Matching unit", i, "of", n_test), "\r", appendLF = FALSE); flush.console()
   xi = x_test[i,]
-
-  mip_pars = setup_miqp_variance(xi = xi, 
-                                 x_train=x_train, y_train = y_train, z_train=z_train,
-                                 x_test =  x_test[-i, , drop=F],
-                                 lambda=3, alpha=1, m=1, M=1e5)
+   xg = xgboost(data = x_train, label = y_train, nrounds = 50, verbose = F)
+  fhat = predict(xg, newdata = x_test)
+  mip_pars = setup_miqp_fhat(xi = xi, fhat = fhat,  x_test =  x_test, 
+                             lambda=2, alpha=1, beta=0, m=1, M=1e5)
   sol = Rcplex(cvec=mip_pars$cvec, Amat=mip_pars$Amat, Qmat = mip_pars$Qmat,
                bvec=mip_pars$bvec, sense = mip_pars$sense,
                lb=mip_pars$lb, ub=mip_pars$ub,
@@ -185,8 +186,11 @@ Y_i &= \alpha + z_i \mathbb{I}_{x_{i1} > 0.5}5 + \epsilon_i.
 \end{align*}
 
 ```{r "sim 1", cache=T}
-res = matching_sim(10, 200, 3, lambda=1, alpha=-2 )
-res$estimator = factor(res$estimator, levels=c("MIP-Explain", "MIP-Predict", "MIQP-Variance", "Greedy", "CEM", "Full Matching" , "Nearest Neighbor", "Prognostic", "Mahalanobis"))
+res = matching_sim(10, 200, 3, lambda=4, alpha=2, beta=0, gamma=0, 
+                   estimators = c("MIQP-Fhat", "Greedy", "CEM", "Full Matching" , 
+                                  "Nearest Neighbor", "Prognostic", "Mahalanobis"))
+res$estimator = factor(res$estimator, levels=c("MIQP-Fhat", "Greedy", "CEM", "Full Matching" , 
+                                               "Nearest Neighbor", "Prognostic", "Mahalanobis"))
 ```
 
 ```{r "sim 1 plot"}
@@ -262,10 +266,15 @@ HTE_dgp = function(X, Z){
 y_dgp = function(X, Z, HTE){
   return(2 + 5 * Z + HTE + rnorm(nrow(X), 0, 1))
 }
-res = matching_sim(10, 200, 3, HTE_dgp = HTE_dgp, y_dgp=y_dgp,lambda=1, alpha=-2)
-res$estimator = factor(res$estimator, levels=c("MIP-Explain", "MIP-Predict", "MIQP-Variance", 
-                                               "Greedy", "CEM", "Full Matching" , "Nearest Neighbor", 
-                                               "Prognostic", "Mahalanobis"))
+# res = matching_sim(10, 200, 3, y_dgp=y_dgp,lambda=4, alpha=2, beta=0, gamma=0, m=2)
+# res$estimator = factor(res$estimator, levels=c("MIP-Explain", "MIP-Predict", "MIQP-Variance", 
+#                                                "Greedy", "CEM", "Full Matching" , "Nearest Neighbor", 
+#                                                "Prognostic", "Mahalanobis"))
+res = matching_sim(10, 200, 3, lambda=4, alpha=2, beta=0, gamma=0, 
+                   estimators = c("MIQP-Fhat", "Greedy", "CEM", "Full Matching" , 
+                                  "Nearest Neighbor", "Prognostic", "Mahalanobis"))
+res$estimator = factor(res$estimator, levels=c("MIQP-Fhat", "Greedy", "CEM", "Full Matching" , 
+                                               "Nearest Neighbor", "Prognostic", "Mahalanobis"))
 ```
 
 ```{r "sim 4 plot"}
@@ -367,8 +376,8 @@ c(df, f, n, n_train, p,
     bart_fit, counterfactuals) %<-% estimator_inputs(df, 100, 200)
 c(greedy_cates, greedy_bins) %<-% est_greedy(train_df, test_df, test_covs, test_control, test_treated,
                                              n_test_treated, 3, bart_fit)
-c(miqp_cates, miqp_bins) %<-% est_MIQP_variance(train_df, test_df, test_treated, n_test_treated, train_covs, 
-                                                test_covs, n_train, p, lambda=3, alpha=0, m=2)
+c(miqp_cates, miqp_bins) %<-% est_MIQP_fhat(test_df, test_treated, n_test_treated, test_covs, bart_fit, 
+                                            n_train, p, lambda=3, alpha=0, m=2)
 
 miqp_cates2 = rep(NA, n_test_treated)
 for (i in 1:n_test_treated){
@@ -376,9 +385,11 @@ for (i in 1:n_test_treated){
   miqp_cates2[i] = mean(test_df$Y[mg][test_df$treated[mg]]) - mean(test_df$Y[mg][!test_df$treated[mg]])
 }
 
-ge = abs(HTE_true - greedy_cates)
-me = abs(HTE_true - miqp_cates)
-me2 = abs(miqp_cates2 - HTE_true)
+HTE_tt = HTE_true[test_treated]
+
+ge = abs(HTE_tt - greedy_cates)
+me = abs(HTE_tt - miqp_cates)
+me2 = abs(miqp_cates2 - HTE_tt)
 
 mip_pars =  setup_miqp_variance(xi = as.numeric(test_covs[i, ]),
                                     y_train = train_df$Y,
@@ -410,8 +421,8 @@ c(df, f, n, n_train, p,
 HTE_test_treated = HTE[test_treated]
 c(greedy_cates, greedy_bins) %<-% est_greedy(train_df, test_df, test_covs, test_control, test_treated,
                                              n_test_treated, 3, bart_fit)
-c(miqp_cates, miqp_bins) %<-% est_MIQP_variance(train_df, test_df, test_treated, n_test_treated, train_covs, 
-                                                test_covs, n_train, p, lambda=2, alpha=1, m=1)
+c(miqp_cates, miqp_bins) %<-% est_MIQP_fhat(test_df, test_treated, n_test_treated, test_covs, bart_fit, 
+                                            n_train, p, lambda=3, alpha=0, m=2)
 
 miqp_cates2 = rep(NA, n_test_treated)
 for (i in 1:n_test_treated){
