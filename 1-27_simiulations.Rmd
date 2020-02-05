@@ -7,7 +7,7 @@ editor_options:
 
 ```{r setup, include=FALSE, warnings=FALSE}
 knitr::opts_chunk$set(echo = FALSE, warning=FALSE, message = FALSE, error=FALSE)
-setwd("/Users/marco/Dropbox/Duke/projects/FLAME-binning/Adaptive-Binning/")
+setwd("/home/marco/Dropbox/Duke/projects/FLAME-binning/Adaptive-Binning/")
 source("AB_MIPs.R")
 library(ggplot2)
 library(reshape2)
@@ -261,18 +261,16 @@ Y_i &= 2 + 5z_i + z_i\mathbf{x}^T\mathbf{B}\mathbf{x} + \epsilon_i.
 \end{align*}
 
 ```{r "sim 4", cache=T}
-HTE_dgp = function(X, Z){
+y_dgp = function(X, Z, eps){
   B = diag(c(0, 2, 1))
-  return(Z * apply(X, 1, function(x) x %*% B %*% x))
-}
-y_dgp = function(X, Z, HTE){
-  return(2 + 5 * Z + HTE + rnorm(nrow(X), 0, 1))
+  HTE = (Z * apply(X, 1, function(x) x %*% B %*% x))
+  return(2 + 5 * Z + HTE + eps)
 }
 # res = matching_sim(10, 200, 3, y_dgp=y_dgp,lambda=4, alpha=2, beta=0, gamma=0, m=2)
 # res$estimator = factor(res$estimator, levels=c("MIP-Explain", "MIP-Predict", "MIQP-Variance", 
 #                                                "Greedy", "CEM", "Full Matching" , "Nearest Neighbor", 
 #                                                "Prognostic", "Mahalanobis"))
-res = matching_sim(10, 200, 3, lambda=4, alpha=2, beta=0, gamma=0, 
+res = matching_sim(10, 200, 3, lambda=4, alpha=2, beta=0, gamma=0, y_dgp = y_dgp,
                    estimators = c("MIQP-Fhat", "Greedy", "CEM", "Full Matching" , 
                                   "Nearest Neighbor", "Prognostic", "Mahalanobis"))
 res$estimator = factor(res$estimator, levels=c("MIQP-Fhat", "Greedy", "CEM", "Full Matching" , 
@@ -340,6 +338,39 @@ res$estimator = factor(res$estimator, levels=c("MIP-Explain", "MIP-Predict", "MI
 ```
 
 ```{r "sim 6  plot"}
+CATE_error_plot(res)
+```
+
+
+
+# Simulation 7
+
+\begin{align*}
+p = 5\\
+x_{ij} &\sim uniform(0.5)\\
+e_i &= logit(\mathbf{x}_i^T\beta)\\
+z_i &\sim Bernoulli(e_i)\\
+\epsilon_i &\sim Normal(0, 1)\\
+\mathbf{B} &= diag([0, 2, 1])\\
+Y_i &= 2 + 5z_i + z_i\mathbf{x}_i^T\mathbf{B}\mathbf{x}_i + \mathbf{x}_i^t\gamma + \epsilon_i.
+\end{align*}
+
+```{r "sim 7", cache=T}
+x_dgp = function(n, p){
+  return(matrix(runif(n*p, 0, 1), n, p))
+}
+y_dgp = function(X, Z, eps){
+  HTE = 10 * sin(pi * X[, 1]*X[, 2]) + 20 * (X[, 3] - 0.5)^2 + 10 * X[, 4] + 5 * X[, 5]
+  return (2 + HTE + Z*5 + eps)
+}
+res = matching_sim(10, 400, 5, y_dgp=y_dgp, X_dgp=x_dgp, 
+                   estimators = c("MIQP-Fhat","Greedy", "CEM", "Full Matching" , "Nearest Neighbor", 
+                                                           "Prognostic", "Mahalanobis"))
+res$estimator = factor(res$estimator, levels=c("MIQP-Fhat","Greedy", "CEM", "Full Matching" , "Nearest Neighbor", 
+                                               "Prognostic", "Mahalanobis"))
+```
+
+```{r "sim 7  plot"}
 CATE_error_plot(res)
 ```
 
@@ -424,17 +455,23 @@ HTE_test_treated = HTE[test_treated]
 c(greedy_cates, greedy_bins) %<-% est_greedy(train_df, test_df, test_covs, test_control, test_treated,
                                              n_test_treated, 3, bart_fit)
 c(miqp_cates, miqp_bins) %<-% est_MIQP_fhat(test_df, test_treated, n_test_treated, test_covs, bart_fit, 
-                                            n_train, p, lambda=3, alpha=0, m=2)
+                                            n_train, p, lambda=3, alpha=1, beta=0, m=2)
 
-miqp_cates2 = rep(NA, n_test_treated)
+miqp_mq = rep(NA, n_test_treated)
+greedy_mq = rep(NA, n_test_treated)
 for (i in 1:n_test_treated){
   mg = make_mg(test_covs, miqp_bins[i,,1], miqp_bins[i,,2])
-  miqp_cates2[i] = mean(test_df$Y[mg][test_df$treated[mg]]) - mean(test_df$Y[mg][!test_df$treated[mg]])
+  miqp_mq[i] = mean(abs(colMeans(test_covs[mg, ][test_df$treated[mg],]) - 
+                          colMeans(test_covs[mg, ][!test_df$treated[mg],])))
+  mg = make_mg(test_covs, greedy_bins[i,,1], greedy_bins[i,,2])
+  greedy_mq[i] = mean(abs(colMeans(test_covs[mg, ][test_df$treated[mg],]) - 
+                          colMeans(test_covs[mg, ][!test_df$treated[mg],])))
 }
 
 ge = abs(HTE_test_treated - greedy_cates)
 me = abs(HTE_test_treated - miqp_cates)
-me2 = abs(miqp_cates2 - HTE_test_treated)
+
+print(mean(me))
 
 mip_pars =  setup_miqp_variance(xi = as.numeric(test_covs[i, ]),
                                     y_train = train_df$Y,

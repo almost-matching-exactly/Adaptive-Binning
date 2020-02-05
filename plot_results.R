@@ -50,6 +50,19 @@ CATE_error_plot <- function(res) {
   print(p)
 }
 
+CATE_scatter_plot <- function(res){
+  
+  p <- ggplot(data=res) + 
+       geom_point(aes(x=actual, y=predicted)) + 
+       geom_smooth(aes(x=actual, y=predicted)) + 
+       geom_abline(intercept = 0, slope=1) + 
+       facet_wrap(estimator~.) + 
+       theme_minimal()
+  
+  print(p)
+}
+
+
 # CATE_error_plot(res)
 # dat <- matrix(c(1, 3, 2, 5, 2, 4, 0, 2, 1, 2.5, 1.5, 1.5), ncol = 6, byrow = TRUE) %>%
 #   as.data.frame() %>%

@@ -708,9 +708,9 @@ setup_mip_predict = function(xi, yi, zi, y_train, x_train, z_train, x_test,
 }
 
 
-setup_miqp_fhat = function(xi, fhat, x_test, lambda=1, alpha=1, beta=1, m=1, M=1e10){
+setup_miqp_fhat = function(xi, fhat0, fhat1, x_test, z_test, lambda=1, alpha=1, beta=1, m=1, M=1e10){
   
-  n_test = length(fhat)
+  n_test = length(fhat1)
   p = length(xi)
   
   #Unit level mip:
@@ -731,7 +731,8 @@ setup_miqp_fhat = function(xi, fhat, x_test, lambda=1, alpha=1, beta=1, m=1, M=1
   
   Qmat = matrix(0, n_vars, n_vars)
   Qmat[(w_start+1):q_start, (w_start+1):q_start] = 
-    outer(fhat, fhat, FUN=function(y1, y2) - lambda * abs(y1 - y2))
+    outer(fhat0, fhat0, FUN=function(y1, y2) - lambda * abs(y1 - y2)) + 
+    outer(fhat1, fhat1, FUN=function(y1, y2) - lambda * abs(y1 - y2))
   
   # Constraint 2 a_j < x_j 
   a2 = matrix(0, p, n_vars)
@@ -848,7 +849,7 @@ setup_miqp_fhat = function(xi, fhat, x_test, lambda=1, alpha=1, beta=1, m=1, M=1
   
   # Constraint 16 sum(wik) >= m
   a16 = matrix(0, 1, n_vars)
-  a16[1, (w_start+1):(w_start + n_test)] = 1
+  a16[1, (w_start+1):(w_start + n_test)] = 1-z_test
   rownames(a16) = "C16"
   b16 = m
   names(b16) = "C16"
@@ -858,11 +859,11 @@ setup_miqp_fhat = function(xi, fhat, x_test, lambda=1, alpha=1, beta=1, m=1, M=1
   bvec = c(b2, b3, b10, b11, b12, b13, b14, b15, b16)
   svec = c(s2, s3, s10, s11, s12, s13, s14, s15, s16)
   
-  lbs = c(sapply(1:p, function(j) min(x_test[, j]))-1/M, 
-          sapply(1:p, function(j) min(x_test[, j]))-1/M, 
+  lbs = c(sapply(1:p, function(j) min(c(x_test[, j], xi[j])))-1/M, 
+          sapply(1:p, function(j) min(c(x_test[, j], xi[j])))-1/M, 
           rep(0, n_test),  rep(0, n_test * p), rep(0, n_test * p))
-  ubs = c(sapply(1:p, function(j) max(x_test[, j]))+1/M, 
-          sapply(1:p, function(j) max(x_test[, j]))+1/M, 
+  ubs = c(sapply(1:p, function(j) max(c(x_test[, j], xi[j])))+1/M, 
+          sapply(1:p, function(j) max(c(x_test[, j], xi[j])))+1/M, 
           rep(1, n_test),  rep(1, n_test * p), rep(1, n_test * p))
   
   vtype = c(rep("C", p), rep("C", p), rep("B", n_test), 

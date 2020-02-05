@@ -27,26 +27,26 @@ expansion_variance <- function(cov, current_lower, current_upper,
   # return(var(colMeans(predict(bart_fit, pred_data)))) ## For BART
 }
 
-# R_expansion_variance <- function(cov, current_bin, expanded_bin, df, bart_fit, n_grid_pts = 8) {
-#   p <- ncol(df) - 2
-#   
-#   expanded <- which(current_bin[cov, ] != expanded_bin[cov, ])
-#   grid_pts <- seq(current_bin[cov, expanded], expanded_bin[cov, expanded], 
-#                   length.out = n_grid_pts)
-#   
-#   bin_centers <- rowMeans(current_bin)
-#   
-#   pred_data <- 
-#     sapply(grid_pts, function(x) {
-#       bin_centers[cov] <- x
-#       bin_centers
-#     }) %>%
-#     t() %>% 
-#     cbind(1) # Treatment = TRUE
-#   
-#   return(var(predict(bart_fit, pred_data))) ## For XGBoost
-#   return(var(colMeans(predict(bart_fit, pred_data)))) ## For BART
-# }
+R_expansion_variance <- function(cov, current_bin, expanded_bin, df, bart_fit, n_grid_pts = 8) {
+  p <- ncol(df) - 2
+
+  expanded <- which(current_bin[cov, ] != expanded_bin[cov, ])
+  grid_pts <- seq(current_bin[cov, expanded], expanded_bin[cov, expanded],
+                  length.out = n_grid_pts)
+
+  bin_centers <- rowMeans(current_bin)
+
+  pred_data <-
+    sapply(grid_pts, function(x) {
+      bin_centers[cov] <- x
+      bin_centers
+    }) %>%
+    t() %>%
+    cbind(1) # Treatment = TRUE
+
+  return(var(predict(bart_fit, pred_data))) ## For XGBoost
+  return(var(colMeans(predict(bart_fit, pred_data)))) ## For BART
+}
 
 get_greedy_CATE <- function(n_test_treated, test_covs, bins, test_df) {
   CATE <- vector('numeric', n_test_treated)

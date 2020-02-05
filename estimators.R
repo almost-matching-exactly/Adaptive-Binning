@@ -252,18 +252,21 @@ est_MIQP_fhat <- function(test_df, test_treated, n_test_treated,test_covs, bart_
                           n_train, p, lambda=10, alpha=1, beta=1, gamma=1, m=1, M=1e05) {
   mip_cates = vector('numeric', n_test_treated)
   mip_bins = array(NA, c(n_test_treated, p, 2))
-  fhat = predict(bart_fit, newdata=as.matrix(cbind(test_covs[test_df$treated==0,], treated=1)))
+  fhat1 = predict(bart_fit, newdata=as.matrix(cbind(test_covs[test_df$treated==0,], treated=1)))
+  fhat0 = predict(bart_fit, newdata=as.matrix(cbind(test_covs, treated=0)))
   message("Running MIQP-Fhat")
   for (l in 1:n_test_treated){
     i = test_treated[l]
     message(paste("Matching unit", l, "of", n_test_treated), "\r", appendLF = FALSE); flush.console()
     
     mip_pars =  setup_miqp_fhat(xi = as.numeric(test_covs[i, ]),
-                                x_test = as.matrix(test_covs[test_df$treated==0, ]),  
-                                fhat=fhat,
+                                x_test = as.matrix(test_covs[test_df$treated==0, ]),
+                                z_test = test_df$treated[test_df$treated==0],
+                                fhat1=fhat1,
+                                fhat0=rep(0, sum(test_df$treated==0)), 
                                 alpha=alpha, lambda=lambda, beta=beta, m=m, M=M)
     sol <- do.call(Rcplex, c(mip_pars, list(objsense="max", control=list(trace=0))))
-    mip_out = recover_pars(sol, n_train, sum(test_df$treated==0), p)
+    mip_out = recover_pars(sol, n_train, nrow(test_covs)-n_test_treated, p)
     
     mip_bins[l, ,1] = mip_out$a
     mip_bins[l, ,2] = mip_out$b
