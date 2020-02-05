@@ -31,7 +31,7 @@ NumericVector greedy_cpp(NumericMatrix test_treated_covs, IntegerVector test_con
                          NumericMatrix test_covs, LogicalVector test_treatments, NumericVector test_outcomes,
                          int variation, int n_req_matches, SEXP bart_fit) {
   
-  auto start = chrono::steady_clock::now();
+  auto start = std::chrono::steady_clock::now();
   
   int n_test_treated = test_treated_covs.nrow(); 
   int p = test_covs.ncol();
@@ -42,12 +42,10 @@ NumericVector greedy_cpp(NumericMatrix test_treated_covs, IntegerVector test_con
   std::cout << "Running Greedy" << std::endl;
   // For each test-treated unit
   for (int i = 0; i < n_test_treated; i++) {
-    // printf("i = %d\n", i);
-    std::cout << "Matching unit " << i + 1 << " of " << n_test_treated << std::flush;
+    std::cout << "Matching unit " << i + 1 << " of " << n_test_treated << "\r" << std::flush;
     
     // Initialize the unit to be trivially in its own MG
     IntegerVector MG(1, test_treated[i]);
-    // std::cout << test_treated[i] << "\n";
     
     // Lower and upper bounds initialized to be unit's covariate values 
     NumericVector A = test_treated_covs(i, _);
@@ -150,10 +148,12 @@ NumericVector greedy_cpp(NumericMatrix test_treated_covs, IntegerVector test_con
       MG = unique(MG); // Can also get CATE in running fashion
     CATE[i] = get_greedy_CATE(MG, test_treatments, test_outcomes);
   }
-  auto end = chrono::steady_clock::now();
-  cout << "Time to match " << n_test_treated << " units: " 
-		<< chrono::duration_cast<chrono::seconds>(end - start).count()
-		<< " seconds" << endl;
-
+  }
+  auto end = std::chrono::steady_clock::now();
+  std::cout << "Time to match " << n_test_treated << " units: "
+       << std::chrono::duration_cast<std::chrono::seconds>(end - start).count()
+       << " seconds" << std::endl;
   return(CATE);
 }
+  
+  
