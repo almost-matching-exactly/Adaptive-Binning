@@ -163,7 +163,7 @@ setup_miqp_variance = function(xi, y_train, x_train, x_test, z_train,
            rep(0, n_test * p),                      # rij
            rep(0, n_train * p),                     # uij
            rep(0, n_train * p),                     # vij
-           rep(0, n_train)                          # sk
+           rep(1, n_train)                          # sk
           )
   
   a_start = 0
