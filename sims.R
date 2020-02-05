@@ -23,7 +23,7 @@ simulate_data <- function(n_units=100, p=3, n_train=floor(n_units/2),
   if (is.null(X_dgp))
     X <- matrix(runif(p * n_units, 0, 5), nrow = n_units)
   else
-    X <- X_dgp(n, p)
+    X <- X_dgp(n_units, p)
   #X <- matrix(rexp(p * n_units, 0.5), nrow = n_units)
   if(is.null(e_dgp))
     e <- expit(.01, X %*% beta)
@@ -38,7 +38,7 @@ simulate_data <- function(n_units=100, p=3, n_train=floor(n_units/2),
     Y1 <- beta0 + (X[, 1] > 1.5) * beta_tilde + eps
     Y0 <- beta0 + eps
   }else{
-    eps <- rnorm(n_units, 0, 1)
+    eps <- rnorm(n_units, 0, .1^0.5)
     Y1 <- y_dgp(X, rep(1, n_units), eps)
     Y0 <- y_dgp(X, rep(0, n_units), eps)
   }

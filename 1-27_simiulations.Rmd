@@ -231,18 +231,20 @@ Y_i &= \alpha + z_i \mathbb{I}_{x_{i1} > 0.5}5 + \epsilon_i.
 \end{align*}
 
 ```{r "sim 3", cache=T}
-# x_dgp = function(n, p){
-#   matrix(rexp(n * p, 0.5), n, p)
-# }
-res = matching_sim(5, 200, 3, 
-                   estimators = c('CEM', 'Nearest Neighbor', 'Full Matching', 'Greedy'))
-res$estimator %<>% factor(levels = c('Greedy', 'Nearest Neighbor', 'CEM', 'Full Matching'))
-# res$estimator = factor(res$estimator, levels=c("MIP-Explain", "MIP-Predict", "MIQP-Variance", 
-#                                                "Greedy", "CEM", "Full Matching" , "Nearest Neighbor", 
-#                                                "Prognostic", "Mahalanobis"))
-```
-
-```{r "sim 3 plot"}
+X_dgp = function(n, p){
+  matrix(runif(n * p, min = 0, max = 5), n, p)
+}
+y_dgp <- function(x, z, eps) {
+  p <- ncol(x) - 3 # 3 irrelevant covariates
+  alpha <- rnorm(p, 10 * sample(c(-1, 1), 1), 1)
+  beta <- rnorm(p, 1.5, 0.15 ^ 0.5)
+  Y <- rowSums(sweep(x, 2, alpha, '*')) + z * rowSums(sweep(x, 2, beta, '*')) +  
+    z * (x[, 1] * x[, 2] + x[, 1] * x[, 3] + x[, 2] * x[, 3]) + eps
+  return(Y)
+}
+res = matching_sim(10, 200, 6, X_dgp = X_dgp, y_dgp = y_dgp,
+                   estimators =  c('MIQP-Fhat', 'Greedy', 'Nearest Neighbor', 'CEM', 'Full Matching', 'Prognostic', 'Mahalanobis'))
+res$estimator %<>% factor(levels = c('MIQP-Fhat', 'Greedy', 'Nearest Neighbor', 'CEM', 'Full Matching', 'Prognostic', 'Mahalanobis'))
 CATE_error_plot(res)
 ```
 
