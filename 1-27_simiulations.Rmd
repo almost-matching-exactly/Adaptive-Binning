@@ -231,13 +231,15 @@ Y_i &= \alpha + z_i \mathbb{I}_{x_{i1} > 0.5}5 + \epsilon_i.
 \end{align*}
 
 ```{r "sim 3", cache=T}
-x_dgp = function(n, p){
-  matrix(rexp(n * p, 0.5), n, p)
-}
-res = matching_sim(2, 200, 3, x_dgp=x_dgp)
-res$estimator = factor(res$estimator, levels=c("MIP-Explain", "MIP-Predict", "MIQP-Variance", 
-                                               "Greedy", "CEM", "Full Matching" , "Nearest Neighbor", 
-                                               "Prognostic", "Mahalanobis"))
+# x_dgp = function(n, p){
+#   matrix(rexp(n * p, 0.5), n, p)
+# }
+res = matching_sim(5, 200, 3, 
+                   estimators = c('CEM', 'Nearest Neighbor', 'Full Matching', 'Greedy'))
+res$estimator %<>% factor(levels = c('Greedy', 'Nearest Neighbor', 'CEM', 'Full Matching'))
+# res$estimator = factor(res$estimator, levels=c("MIP-Explain", "MIP-Predict", "MIQP-Variance", 
+#                                                "Greedy", "CEM", "Full Matching" , "Nearest Neighbor", 
+#                                                "Prognostic", "Mahalanobis"))
 ```
 
 ```{r "sim 3 plot"}

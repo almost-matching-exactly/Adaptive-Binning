@@ -1,5 +1,6 @@
 source('helpers.R')
 source("AB_MIPs.R")
+Rcpp::sourceCpp('greedy.cpp')
 
 require(MatchIt)
 require(cem)
@@ -101,6 +102,7 @@ est_greedy <- function(train_df,
   for (i in 1:n_test_treated) {
     message(paste("Matching unit", i, "of", n_test_treated), "\r", appendLF = FALSE); flush.console()
     bin_copy <- matrix(bins[i, ,], ncol = 2) # Conversion to matrix handles case of 1 covariate
+    # print(sprintf('i = %d', i))
     while (length(already_matched[[i]]) < n_req_matches) { 
       # Find units closest along each axis
       if (variation != 2) { ## Only expand to control units
@@ -143,7 +145,7 @@ est_greedy <- function(train_df,
           proposed_bin[[j]][j, 1] <- test_df[expand_down[which.min(abs(bin_copy[j, 1] - test_df[expand_down, j]))], j]
         }
         
-        bin_var[j] <- expansion_variance(j, bin_copy, proposed_bin[[j]], train_df, bart_fit)
+        bin_var[j] <- R_expansion_variance(j, bin_copy, proposed_bin[[j]], train_df, bart_fit)
       }
       
       expand_along <- which.min(bin_var)
@@ -151,7 +153,6 @@ est_greedy <- function(train_df,
       in_MG <- apply(test_covs, 1, function(x) all(x >= bin_copy[, 1]) & all(x <= bin_copy[, 2]))
       already_matched[[i]] <- unique(c(already_matched[[i]], which(in_MG)))
     }
-    
     bins[i, , ] <- bin_copy
   }
   message("\n")
@@ -308,16 +309,10 @@ get_CATEs <- function(inputs, estimators, hyperparameters) {
       CATEs[, i] <- est_nn(df, n_train, f, ratio = 1)
     }
     else if (estimators[i] == 'Greedy') {
-      greedy_out <- est_greedy(train_df, 
-                               test_df, 
-                               test_covs, 
-                               test_control, 
-                               test_treated, 
-                               n_test_treated, 
-                               p, 
-                               bart_fit)
-      CATEs[, i] <- greedy_out$CATE
-      bins[['Greedy']] <- greedy_out$bins
+      CATEs[, i] <- greedy_cpp(as.matrix(test_covs[test_treated, ]), 
+                               test_control - 1, test_treated - 1,
+                               as.matrix(test_covs), as.logical(test_df$treated), test_df$Y,
+                               1, 5, bart_fit)
     }
     else if (estimators[i] == 'MIP-Predict') {
       mip_predict_out <- 
