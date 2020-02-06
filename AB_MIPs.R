@@ -708,7 +708,8 @@ setup_mip_predict = function(xi, yi, zi, y_train, x_train, z_train, x_test,
 }
 
 
-setup_miqp_fhat = function(xi, fhat0, fhat1, x_test, z_test, lambda=1, alpha=1, beta=1, m=1, M=1e10){
+setup_miqp_fhat = function(xi, fhati1, fhati0, fhat0, fhat1, x_test, z_test, 
+                           lambda1=1, lambda0=0, alpha=1, beta=1, gamma1=1, gamma0=0, m=1, M=1e10){
   
   n_test = length(fhat1)
   p = length(xi)
@@ -717,7 +718,9 @@ setup_miqp_fhat = function(xi, fhat0, fhat1, x_test, z_test, lambda=1, alpha=1, 
   # Objective: max c'X
   cvec = c(alpha * rep(-1, p),                      # aij
            alpha * rep(1, p),                       # bij
-           beta * rep(1, n_test),                   # wij
+           beta * rep(1, n_test) + 
+           - gamma1 * abs(fhati1 - fhat1)
+           - gamma0 * abs(fhati0 - fhat0),           # wij
            rep(0, n_test * p),                      # qij
            rep(0, n_test * p)                       # rij
   )
@@ -731,8 +734,8 @@ setup_miqp_fhat = function(xi, fhat0, fhat1, x_test, z_test, lambda=1, alpha=1, 
   
   Qmat = matrix(0, n_vars, n_vars)
   Qmat[(w_start+1):q_start, (w_start+1):q_start] = 
-    outer(fhat0, fhat0, FUN=function(y1, y2) - lambda * abs(y1 - y2)) + 
-    outer(fhat1, fhat1, FUN=function(y1, y2) - lambda * abs(y1 - y2))
+    outer(fhat0, fhat0, FUN=function(y1, y2) - lambda0 * abs(y1 - y2)) + 
+    outer(fhat1, fhat1, FUN=function(y1, y2) - lambda1 * abs(y1 - y2))
   
   # Constraint 2 a_j < x_j 
   a2 = matrix(0, p, n_vars)

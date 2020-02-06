@@ -7,7 +7,7 @@ editor_options:
 
 ```{r setup, include=FALSE, warnings=FALSE}
 knitr::opts_chunk$set(echo = FALSE, warning=FALSE, message = FALSE, error=FALSE)
-setwd("/home/marco/Dropbox/Duke/projects/FLAME-binning/Adaptive-Binning/")
+setwd("/Users/marco/Dropbox/Duke/projects/FLAME-binning/Adaptive-Binning/")
 source("AB_MIPs.R")
 library(ggplot2)
 library(reshape2)
@@ -456,8 +456,14 @@ c(df, f, n, n_train, p,
 HTE_test_treated = HTE[test_treated]
 c(greedy_cates, greedy_bins) %<-% est_greedy(train_df, test_df, test_covs, test_control, test_treated,
                                              n_test_treated, 3, bart_fit)
+bart_fit <- bart(x.train = dplyr::select(train_df, -Y),
+                   y.train = train_df$Y,
+                   keeptrees = TRUE,
+                   verbose = FALSE)
 c(miqp_cates, miqp_bins) %<-% est_MIQP_fhat(test_df, test_treated, n_test_treated, test_covs, bart_fit, 
-                                            n_train, p, lambda=3, alpha=1, beta=0, m=2)
+                                            n_train, p, 
+                                            lambda0=0, lambda1=0, gamma0=0.5, gamma1=0.5,
+                                            alpha=-1, beta=2, m=1)
 
 miqp_mq = rep(NA, n_test_treated)
 greedy_mq = rep(NA, n_test_treated)
@@ -487,7 +493,10 @@ mip_out = recover_pars(sol, nrow(train_df), sum(test_df$treated==0), p)
 ```
 
 
+## Simple Tests
+```{r "Simple test"}
 
+```
 
 
 

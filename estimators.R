@@ -249,31 +249,36 @@ est_MIQP_variance <- function(train_df, test_df,
 }
 
 est_MIQP_fhat <- function(test_df, test_treated, n_test_treated,test_covs, bart_fit,
-                          n_train, p, lambda=10, alpha=1, beta=1, gamma=1, m=1, M=1e05) {
+                          n_train, p, lambda0=10, lambda1=10, alpha=1, 
+                          beta=1, gamma0=1, gamma1=1, m=1, M=1e05) {
   mip_cates = vector('numeric', n_test_treated)
   mip_bins = array(NA, c(n_test_treated, p, 2))
-  fhat1 = predict(bart_fit, newdata=as.matrix(cbind(test_covs[test_df$treated==0,], treated=1)))
-  fhat0 = predict(bart_fit, newdata=as.matrix(cbind(test_covs, treated=0)))
+  fhat1 = predict(bart_fit, test=as.matrix(cbind(test_covs, treated=1)))
+  fhat0 = predict(bart_fit, test=as.matrix(cbind(test_covs, treated=0)))
   message("Running MIQP-Fhat")
   for (l in 1:n_test_treated){
     i = test_treated[l]
     message(paste("Matching unit", l, "of", n_test_treated), "\r", appendLF = FALSE); flush.console()
     
     mip_pars =  setup_miqp_fhat(xi = as.numeric(test_covs[i, ]),
-                                x_test = as.matrix(test_covs[test_df$treated==0, ]),
-                                z_test = test_df$treated[test_df$treated==0],
-                                fhat1=fhat1,
-                                fhat0=rep(0, sum(test_df$treated==0)), 
-                                alpha=alpha, lambda=lambda, beta=beta, m=m, M=M)
+                                x_test = as.matrix(test_covs[-i, ]),
+                                z_test = test_df$treated[-i],
+                                fhati1=fhat1[i],
+                                fhati0=fhat0[i],
+                                fhat1=fhat1[-i],
+                                fhat0=fhat0[-i], 
+                                alpha=alpha, lambda0=lambda0, lambda1=lambda1,
+                                gamma0=gamma0, gamma1=gamma1, beta=beta, m=m, M=M)
     sol <- do.call(Rcplex, c(mip_pars, list(objsense="max", control=list(trace=0))))
-    mip_out = recover_pars(sol, n_train, nrow(test_covs)-n_test_treated, p)
+    mip_out = recover_pars(sol, n_train, nrow(test_covs), p)
     
     mip_bins[l, ,1] = mip_out$a
     mip_bins[l, ,2] = mip_out$b
     #mip_cates[l] = test_df$Y[i] - mean(test_df$Y[test_df$treated==0][mip_out$w>=0.1])
 
     mg = make_mg(test_covs, mip_out$a, mip_out$b)
-    mip_cates[l] = mean(test_df$Y[mg][test_df$treated[mg]]) - mean(test_df$Y[mg][!test_df$treated[mg]])
+    #mip_cates[l] = mean(test_df$Y[mg][test_df$treated[mg]]) - mean(test_df$Y[mg][!test_df$treated[mg]])
+    mip_cates[l] = test_df$Y[i] - mean(test_df$Y[mg][!test_df$treated[mg]])
   }
   message("\n")
   return(list(CATE = mip_cates, bins = mip_bins))
@@ -344,7 +349,8 @@ get_CATEs <- function(inputs, estimators, hyperparameters) {
     else if (estimators[i] == 'MIQP-Fhat') {
       miqp_fhat_out <- 
         est_MIQP_fhat(test_df, test_treated, n_test_treated,test_covs, bart_fit,
-                      n_train, p, lambda=lambda, alpha=alpha, beta=beta, gamma=gamma, m=m, M=M)
+                      n_train, p, lambda0=lambda0, lambda1=lambda1, 
+                      alpha=alpha, beta=beta, gamma0=gamma0, gamma1=gamma1, m=m, M=M)
       CATEs[, i] <- miqp_fhat_out$CATE
       bins[['MIQP-Fhat']] <- miqp_fhat_out$bins
     }
