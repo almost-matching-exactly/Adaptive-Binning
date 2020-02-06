@@ -109,8 +109,12 @@ for (i in 1:n_test){
   xi = x_test[i,]
    xg = xgboost(data = x_train, label = y_train, nrounds = 50, verbose = F)
   fhat = predict(xg, newdata = x_test)
-  mip_pars = setup_miqp_fhat(xi = xi, fhat = fhat,  x_test =  x_test, 
-                             lambda=2, alpha=1, beta=0, m=1, M=1e5)
+  mip_pars = setup_miqp_fhat(xi = xi, fhat1 = fhat[-i], fhat0=fhat[-i], 
+                             fhati1=fhat[i], fhati0=fhat[i], 
+                             z_test=z_test[-i],
+                             x_test =  x_test[-i, ], 
+                             lambda1=1, lambda0=1, gamma1=2, gamma0=2, 
+                             alpha=-1, beta=0, m=1, M=1e5)
   sol = Rcplex(cvec=mip_pars$cvec, Amat=mip_pars$Amat, Qmat = mip_pars$Qmat,
                bvec=mip_pars$bvec, sense = mip_pars$sense,
                lb=mip_pars$lb, ub=mip_pars$ub,
@@ -124,12 +128,10 @@ print(paste("100 matches took", round(proc.time()[3] - t1, 1)))
 ```
 
 ```{r "simple MIP-P p=2 plot"}
-
 ggplot(simdata) + 
   geom_rect(aes(xmin=a1, ymin=a2, xmax=b1, ymax=b2), fill="grey", 
             color="black", size=0.5, alpha=0.3) + 
   geom_point(aes(x=x1, y=x2, color=abs(yest - y)/mean(abs(y))), size=2) + 
-  geom_raster(aes(x=x1, y=x2, fill=y)) + 
   scale_color_gradient(low="blue", high="red") + 
   xlab("x1") + ylab("x2") +  labs(color="% Abs. error") +  theme_bw() + 
   theme(legend.position = c(0.9,0.5), 
@@ -186,7 +188,11 @@ Y_i &= \alpha + z_i \mathbb{I}_{x_{i1} > 0.5}5 + \epsilon_i.
 \end{align*}
 
 ```{r "sim 1", cache=T}
-res = matching_sim(10, 200, 3, lambda=4, alpha=2, beta=0, gamma=0, 
+x_dgp = function(n, p){
+  return(matrix(runif(n*p, 0, 1), n, p))
+}
+res = matching_sim(10, 200, 3, lambda=4, alpha=2, beta=0, gamma=0, lambda0=1, lambda1=1, 
+                   gamma0=2, gamma1=2, X_dgp=x_dgp,
                    estimators = c("MIQP-Fhat", "Greedy", "CEM", "Full Matching" , 
                                   "Nearest Neighbor", "Prognostic", "Mahalanobis"))
 res$estimator = factor(res$estimator, levels=c("MIQP-Fhat", "Greedy", "CEM", "Full Matching" , 
@@ -447,7 +453,10 @@ y_dgp = function(X, Z, eps){
   gamma = c(0, 2, 1)
   return(2 + 5 * Z + HTE + X%*%gamma + eps)
 }
-c(df, HTE) %<-% simulate_data(200, 3, y_dgp = y_dgp)
+x_dgp = function(n, p){
+  return(matrix(runif(n*p, 0, 1), n, p))
+}
+c(df, HTE) %<-% simulate_data(200, 3, y_dgp = y_dgp, X_dgp=x_dgp)
 c(df, f, n, n_train, p,
     train_df, train_covs, train_control, train_treated,
     test_df, test_covs, test_control, test_treated, 
@@ -456,13 +465,9 @@ c(df, f, n, n_train, p,
 HTE_test_treated = HTE[test_treated]
 c(greedy_cates, greedy_bins) %<-% est_greedy(train_df, test_df, test_covs, test_control, test_treated,
                                              n_test_treated, 3, bart_fit)
-bart_fit <- bart(x.train = dplyr::select(train_df, -Y),
-                   y.train = train_df$Y,
-                   keeptrees = TRUE,
-                   verbose = FALSE)
 c(miqp_cates, miqp_bins) %<-% est_MIQP_fhat(test_df, test_treated, n_test_treated, test_covs, bart_fit, 
                                             n_train, p, 
-                                            lambda0=0, lambda1=0, gamma0=0.5, gamma1=0.5,
+                                            lambda0=1, lambda1=1, gamma0=0.5, gamma1=0.5,
                                             alpha=-1, beta=2, m=1)
 
 miqp_mq = rep(NA, n_test_treated)

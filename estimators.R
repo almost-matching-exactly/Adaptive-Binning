@@ -253,8 +253,8 @@ est_MIQP_fhat <- function(test_df, test_treated, n_test_treated,test_covs, bart_
                           beta=1, gamma0=1, gamma1=1, m=1, M=1e05) {
   mip_cates = vector('numeric', n_test_treated)
   mip_bins = array(NA, c(n_test_treated, p, 2))
-  fhat1 = predict(bart_fit, test=as.matrix(cbind(test_covs, treated=1)))
-  fhat0 = predict(bart_fit, test=as.matrix(cbind(test_covs, treated=0)))
+  fhat1 = predict(bart_fit, newdata =as.matrix(cbind(test_covs, treated=1)))
+  fhat0 = predict(bart_fit, newdata=as.matrix(cbind(test_covs, treated=0)))
   message("Running MIQP-Fhat")
   for (l in 1:n_test_treated){
     i = test_treated[l]
@@ -297,7 +297,7 @@ get_CATEs <- function(inputs, estimators, hyperparameters) {
     n_test_control, n_test_treated, 
     bart_fit, counterfactuals) %<-% inputs
   
-  c(lambda, alpha, beta, gamma, m, M) %<-% hyperparameters
+  c(lambda, alpha, beta, gamma, lambda0, lambda1, gamma0, gamma1, m, M) %<-% hyperparameters
   
   CATEs <- matrix(nrow = n_test_treated, ncol = n_estimators)
   for (i in 1:n_estimators) {
