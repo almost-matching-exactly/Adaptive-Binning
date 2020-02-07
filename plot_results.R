@@ -1,4 +1,57 @@
 library(RColorBrewer)
+library(ggiraph)
+
+bin_plot <- function(mip_out, test_df, cov1, cov2, ...) {
+  # Input covariates / dimensions for which you would like bins
+  boundaries <- c(...)
+  test_df %<>% filter(treated)
+  bins <- mip_out$bins
+  bins <- 
+    cbind(bins[, c(cov1, cov2), 1], 
+          bins[, c(cov1, cov2), 2],
+          test_df[, cov1],
+          test_df[, cov2]) %>%
+    as.data.frame() %>%
+    `colnames<-`(c('lower1', 'lower2', 
+                   'upper1', 'upper2',
+                   'point1', 'point2')) %>%
+    mutate(id = 1:nrow(.),
+           unmatched = is.na(lower1)) 
+  
+  p <- 
+    ggplot(data = bins, aes(color = unmatched)) + 
+    geom_rect_interactive(aes(xmin = lower1, xmax = upper1, 
+                              ymin = lower2, ymax = upper2,
+                              data_id = id),
+                          fill = 'grey', color = 'NA', 
+                          size = 0.5, alpha = 0) + 
+    geom_point_interactive(data = filter(bins, !is.na(lower1)),
+                           aes(x = point1, y = point2, data_id = id)) +
+    geom_point(data = filter(bins, is.na(lower1)),
+               aes(x = point1, y = point2)) +
+    scale_color_manual(values= c('black', 'red'),
+                       name = 'Matched',
+                       labels = c('Yes', 'No'))+
+    labs(x = 'x1', y = 'x2') +
+    theme_bw()
+  
+  if (length(boundaries) != 0) {
+    p <- 
+      p + 
+      geom_rect(xmin = boundaries[1], xmax = boundaries[2],
+                ymin = boundaries[3], ymax = boundaries[4],
+                fill = 'NULL', color = '#E9CCD1')
+  }
+  
+  girafe(ggobj = p,
+         options = list(
+           opts_hover(
+             css = girafe_css(
+               css = 'fill:orange',
+               area = 'fill:#E8C3D6;fill-opacity:0.8',
+               point = 'fill:black;r:5;stroke:black'
+             ))))
+}
 
 CATE_error_plot <- function(res) {
   perc_missing <- 

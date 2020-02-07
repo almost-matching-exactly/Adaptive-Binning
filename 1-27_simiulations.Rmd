@@ -219,6 +219,30 @@ CATE_error_plot(res)
 ```
 
 
+# Simulation Vittorio
+```{r}
+X_dgp = function(n, p){
+  matrix(runif(n * p, min = 0, max = 5), n, p)
+}
+y_dgp <- function(x, z, eps, n_irrelevant = 0) {
+  p <- ncol(x) - n_irrelevant
+
+  # beta <- rnorm(p, 1.5, 0.15 ^ 0.5)
+  beta_tilde <- 5
+  Y <- 
+    ((x[, 1] > 1.5 & x[, 2] < 1)) * beta_tilde * z + eps
+  
+  # Y <- rowSums(sweep(x, 2, alpha, '*')) + z * rowSums(sweep(x, 2, beta, '*')) +  
+  #   z * (x[, 1] * x[, 2] + x[, 1] * x[, 3] + x[, 2] * x[, 3]) + eps
+  return(Y)
+}
+res = matching_sim(10, 200, 2, X_dgp = X_dgp, y_dgp = y_dgp,
+                   estimators =  c('MIQP-Fhat', 'Greedy', 'Nearest Neighbor', 'CEM', 'Full Matching', 'Prognostic', 'Mahalanobis'))
+res$estimator %<>% factor(levels = c('MIQP-Fhat', 'Greedy', 'Nearest Neighbor', 'CEM', 'Full Matching', 'Prognostic', 'Mahalanobis'))
+CATE_error_plot(res)
+```
+
+
 # Simulation 3
 
 \begin{align*}
