@@ -86,7 +86,7 @@ matching_sim <- function(n_sims = 10, n_units = 100, p = 3, n_train = floor(n_un
     
     print(sprintf('%d of %d simulations completed', sim, n_sims))
   }
-  beep()
+  # beep()
   
   all_CATEs 
 }
