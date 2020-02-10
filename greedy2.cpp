@@ -29,8 +29,8 @@ double get_greedy_CATE(IntegerVector MG, LogicalVector test_treatments,
 
 // [[Rcpp::export]]
 List greedy_cpp(NumericMatrix test_treated_covs, IntegerVector test_control, IntegerVector test_treated,
-                         NumericMatrix test_covs, LogicalVector test_treatments, NumericVector test_outcomes,
-                         int variation, int n_req_matches, SEXP bart_fit) {
+                NumericMatrix test_covs, LogicalVector test_treatments, NumericVector test_outcomes,
+                int variation, int n_req_matches, SEXP bart_fit) {
   
   auto start = std::chrono::steady_clock::now();
   
@@ -43,6 +43,10 @@ List greedy_cpp(NumericMatrix test_treated_covs, IntegerVector test_control, Int
   std::cout << "Running Greedy" << std::endl;
   List all_A = List::create();
   List all_B = List::create();
+  
+  // NumericVector variances; 
+  double prev_var;
+  
   // For each test-treated unit
   for (int i = 0; i < n_test_treated; i++) {
     std::cout << "Matching unit " << i + 1 << " of " << n_test_treated << "\r" << std::flush;
@@ -53,9 +57,11 @@ List greedy_cpp(NumericMatrix test_treated_covs, IntegerVector test_control, Int
     // Lower and upper bounds initialized to be unit's covariate values 
     NumericVector A = test_treated_covs(i, _);
     NumericVector B = test_treated_covs(i, _);
-    
+    NumericVector bin_var(p, R_PosInf); // Variance of expansion along each cov
     // While we haven't matched enough units 
-    while (MG.size() < n_req_matches) {
+    do {
+      prev_var = min(bin_var) + 0.1;
+      // std::cout << "Unit " << i << "has prev_var = " << prev_var << std::endl;
       // std::cout << "The bins are: \n";
       // for (int l = 0; l < A.size(); l++) {
       //   std::cout << A[l] << " " << B[l] << "\n";
@@ -70,7 +76,7 @@ List greedy_cpp(NumericMatrix test_treated_covs, IntegerVector test_control, Int
         // To do
         exit(-1);
       }
-      NumericVector bin_var(p); // Variance of expansion along each cov
+      
       NumericVector proposed_bin(p); // Proposed bin endpoint for each cov
       for (int j = 0; j < p; j++) { // Find variance of expanding each cov
         NumericVector test_df_col = test_covs(_, j); 
@@ -150,16 +156,17 @@ List greedy_cpp(NumericMatrix test_treated_covs, IntegerVector test_control, Int
       
       MG = unique(MG); // Can also get CATE in running fashion
       CATE[i] = get_greedy_CATE(MG, test_treatments, test_outcomes);
+      // std::cout << "Unit " << i << "has min_var = " << min(bin_var) << std::endl;
     }
+    while (min(bin_var) < 1.1 * prev_var);
     all_A.push_back(A);
     all_B.push_back(B);
   }
   auto end = std::chrono::steady_clock::now();
   std::cout << "Time to match " << n_test_treated << " units: "
-       << std::chrono::duration_cast<std::chrono::seconds>(end - start).count()
-       << " seconds" << std::endl;
+            << std::chrono::duration_cast<std::chrono::seconds>(end - start).count()
+            << " seconds" << std::endl;
   List ret = List::create(CATE, all_A, all_B);
   return(ret);
 }
-  
-  
+

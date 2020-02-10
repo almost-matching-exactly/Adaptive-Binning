@@ -78,7 +78,6 @@ bin_plot <- function(bins, test_df, cov1, cov2, ...) {
              ))))
 }
 
-
 CATE_error_plot <- function(res) {
   perc_missing <- 
     res %>%

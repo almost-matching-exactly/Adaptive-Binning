@@ -1,4 +1,5 @@
 Simulation Types:
+You can ignore the difference between sim_ and conf_sim_
 For all of these, there are 2 covariates.
 The simulation type (constraints below) determines the treatment effect. 
 All of these below are implicitly multiplied by some beta_tilde
