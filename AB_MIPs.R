@@ -854,7 +854,7 @@ setup_miqp_fhat = function(xi, fhati1, fhati0, fhat0, fhat1, x_test, z_test,
   
   # Constraint 16 sum(wik) >= m
   a16 = matrix(0, 1, n_vars)
-  a16[1, (w_start+1):(w_start + n_test)] = 1-z_test
+  a16[1, (w_start+1):(w_start + n_test)] = 1#1-z_test
   rownames(a16) = "C16"
   b16 = m
   names(b16) = "C16"
