@@ -7,7 +7,7 @@ editor_options:
 
 ```{r setup, include=FALSE, warnings=FALSE}
 knitr::opts_chunk$set(echo = FALSE, warning=FALSE, message = FALSE, error=FALSE)
-setwd("/Users/marco/Dropbox/Duke/projects/FLAME-binning/Adaptive-Binning/")
+setwd("/home/marco/Dropbox/Duke/projects/FLAME-binning/Adaptive-Binning/")
 source("AB_MIPs.R")
 library(ggplot2)
 library(reshape2)
@@ -90,10 +90,12 @@ n = 100
 n_train = 100
 n_test = 100
 p = 2
-x_train = matrix(rexp(n_train*p, 2), n_train, p)
-y_train = rowSums(log(x_train)) #+ rnorm(n_train, 0, 1)
-x_test = matrix(rexp(n_test*p, 2), n_test, p)
-y_test = rowSums(log(x_test)) #+ rnorm(n_test, 0, 1)
+#x_train = matrix(rexp(n_train*p, 2), n_train, p)
+#x_test = matrix(rexp(n_test*p, 2), n_test, p)
+x_train = matrix(runif(n_train*p, 0, 1), n_train, p)
+x_test = matrix(runif(n_test*p, 0, 1), n_test, p)
+y_train = rowSums(log(x_train)) + rnorm(n_train, 0, 1)
+y_test = rowSums(log(x_test)) + rnorm(n_test, 0, 1)
 z_train = rep(1, n_train)
 z_train[sample(1:n_train, n_train/2, replace = FALSE)] = 0
 z_test = rep(0, n_test)
@@ -103,23 +105,27 @@ names(simdata) = c(paste("x",1:p, sep=""),
                    paste("a", 1:p, sep=""), 
                    paste("b", 1:p, sep=""), "y", "yest")
 t1 = proc.time()[3]
+# xg = xgboost(data = x_train, label = y_train, nrounds = 50, verbose = F)
+# fhat = predict(xg, newdata = x_test)
+bart_fit = bart(x_train, y_train, x_test, keeptrees = T, verbose = 0)
+fhat = colMeans(predict(bart_fit, test=x_test))
+obj = rep(NA, n_test)
 mip_outputs = list()
 for (i in 1:n_test){
   message(paste("Matching unit", i, "of", n_test), "\r", appendLF = FALSE); flush.console()
   xi = x_test[i,]
-   xg = xgboost(data = x_train, label = y_train, nrounds = 50, verbose = F)
-  fhat = predict(xg, newdata = x_test)
   mip_pars = setup_miqp_fhat(xi = xi, fhat1 = fhat[-i], fhat0=fhat[-i], 
                              fhati1=fhat[i], fhati0=fhat[i], 
                              z_test=z_test[-i],
                              x_test =  x_test[-i, ], 
-                             lambda1=1, lambda0=1, gamma1=2, gamma0=2, 
-                             alpha=-1, beta=0, m=1, M=1e5)
+                             lambda1=3, lambda0=3, gamma1=5, gamma0=5, 
+                             alpha=0, beta=1, m=1, M=1e5)
   sol = Rcplex(cvec=mip_pars$cvec, Amat=mip_pars$Amat, Qmat = mip_pars$Qmat,
                bvec=mip_pars$bvec, sense = mip_pars$sense,
                lb=mip_pars$lb, ub=mip_pars$ub,
                vtype = mip_pars$vtype, objsense = "max", control=list(trace=0))
   mip_out = recover_pars(sol, n_train, n_test-1, p)
+  obj[i] = sol$obj
   mip_outputs[[i]] = mip_out
   yest = mean(y_test[-i][which(mip_out$w>=0.1)])
   simdata[i, ] = c(xi, mip_out$a, mip_out$b, y_test[i], yest)
@@ -176,6 +182,67 @@ girafe(ggobj = p,
 ```
 
 
+
+
+## 2D Example With a Useless Covariate
+
+```{r "simple MIP-P p=2", cache=TRUE, results='hide'}
+n = 100
+n_train = 100
+n_test = 100
+p = 2
+x_train = matrix(runif(n_train*p, 0, 1), n_train, p)
+y_train = (2*(x_train[, 1])) + rnorm(n_train, 0, 0.5)
+x_test = matrix(runif(n_test*p, 0, 1), n_test, p)
+y_test = (2*(x_test[, 1])) + rnorm(n_test, 0, 0.5)
+z_train = rep(1, n_train)
+z_train[sample(1:n_train, n_train/2, replace = FALSE)] = 0
+z_test = rep(0, n_test)
+simdata = matrix(NA, n_test, 3* p + 2)
+simdata = data.frame(simdata)
+names(simdata) = c(paste("x",1:p, sep=""), 
+                   paste("a", 1:p, sep=""), 
+                   paste("b", 1:p, sep=""), "y", "yest")
+t1 = proc.time()[3]
+# xg = xgboost(data = x_train, label = y_train, nrounds = 50, verbose = F)
+# fhat = predict(xg, newdata = x_test)
+lasso = glmnet(x_train, y_train, family="gaussian", alpha=1)
+fhat = predict(lasso, newx = x_test)[,57]
+mip_outputs = list()
+for (i in 1:n_test){
+  message(paste("Matching unit", i, "of", n_test), "\r", appendLF = FALSE); flush.console()
+  xi = x_test[i,]
+  mip_pars = setup_miqp_fhat(xi = xi, fhat1 = fhat[-i], fhat0=fhat[-i], 
+                             fhati1=fhat[i], fhati0=fhat[i], 
+                             z_test=z_test[-i],
+                             x_test =  x_test[-i, ], 
+                             lambda1=1, lambda0=1, gamma1=2, gamma0=2, 
+                             alpha=-1, beta=0, m=1, M=1e5)
+  sol = Rcplex(cvec=mip_pars$cvec, Amat=mip_pars$Amat, Qmat = mip_pars$Qmat,
+               bvec=mip_pars$bvec, sense = mip_pars$sense,
+               lb=mip_pars$lb, ub=mip_pars$ub,
+               vtype = mip_pars$vtype, objsense = "max", control=list(trace=0))
+  mip_out = recover_pars(sol, n_train, n_test-1, p)
+  mip_outputs[[i]] = mip_out
+  yest = mean(y_test[-i][which(mip_out$w>=0.1)])
+  simdata[i, ] = c(xi, mip_out$a, mip_out$b, y_test[i], yest)
+}
+print(paste("100 matches took", round(proc.time()[3] - t1, 1)))
+```
+
+```{r "simple MIP-P p=2 plot"}
+ggplot(simdata) + 
+  geom_rect(aes(xmin=a1, ymin=a2, xmax=b1, ymax=b2), fill="grey", 
+            color="black", size=0.5, alpha=0.3) + 
+  geom_point(aes(x=x1, y=x2, color=abs(yest - y)/mean(abs(y))), size=2) + 
+  scale_color_gradient(low="blue", high="red") + 
+  xlab("x1") + ylab("x2") +  labs(color="% Abs. error") +  theme_bw() + 
+  theme(legend.position = c(0.9,0.5), 
+        legend.background = element_rect(color="black", size=0.5))
+#ggsave("01-21_p=2_plot.png")
+```
+
+
 # Simulation 1
 
 \begin{align*}
@@ -189,10 +256,10 @@ Y_i &= \alpha + z_i \mathbb{I}_{x_{i1} > 0.5}5 + \epsilon_i.
 
 ```{r "sim 1", cache=T}
 x_dgp = function(n, p){
-  return(matrix(runif(n*p, 0, 1), n, p))
+  return(matrix(rexp(n*p, 2), n, p))
 }
-res = matching_sim(10, 200, 3, lambda=4, alpha=2, beta=0, gamma=0, lambda0=1, lambda1=1, 
-                   gamma0=2, gamma1=2, X_dgp=x_dgp,
+res = matching_sim(10, 200, 3, lambda=4, alpha=-1, beta=0, gamma=0, lambda0=1, lambda1=1, 
+                   gamma0=2, gamma1=2, X_dgp=x_dgp, m = 2,
                    estimators = c("MIQP-Fhat", "Greedy", "CEM", "Full Matching" , 
                                   "Nearest Neighbor", "Prognostic", "Mahalanobis"))
 res$estimator = factor(res$estimator, levels=c("MIQP-Fhat", "Greedy", "CEM", "Full Matching" , 
@@ -298,11 +365,15 @@ y_dgp = function(X, Z, eps){
   HTE = (Z * apply(X, 1, function(x) x %*% B %*% x))
   return(2 + 5 * Z + HTE + eps)
 }
+x_dgp = function(n, p){
+  return(matrix(runif(n*p, 0, 1), n, p))
+}
 # res = matching_sim(10, 200, 3, y_dgp=y_dgp,lambda=4, alpha=2, beta=0, gamma=0, m=2)
 # res$estimator = factor(res$estimator, levels=c("MIP-Explain", "MIP-Predict", "MIQP-Variance", 
 #                                                "Greedy", "CEM", "Full Matching" , "Nearest Neighbor", 
 #                                                "Prognostic", "Mahalanobis"))
-res = matching_sim(10, 200, 3, lambda=4, alpha=2, beta=0, gamma=0, y_dgp = y_dgp,
+res = matching_sim(10, 200, 3, lambda=4, alpha=-2, beta=0, gamma=0, y_dgp = y_dgp, X_dgp = x_dgp,
+                   lambda0=1, lambda1=1, gamma1=2, gamma0=2, m=2,
                    estimators = c("MIQP-Fhat", "Greedy", "CEM", "Full Matching" , 
                                   "Nearest Neighbor", "Prognostic", "Mahalanobis"))
 res$estimator = factor(res$estimator, levels=c("MIQP-Fhat", "Greedy", "CEM", "Full Matching" , 
@@ -395,9 +466,10 @@ y_dgp = function(X, Z, eps){
   HTE = 10 * sin(pi * X[, 1]*X[, 2]) + 20 * (X[, 3] - 0.5)^2 + 10 * X[, 4] + 5 * X[, 5]
   return (2 + HTE + Z*5 + eps)
 }
-res = matching_sim(10, 400, 5, y_dgp=y_dgp, X_dgp=x_dgp, 
-                   estimators = c("MIQP-Fhat","Greedy", "CEM", "Full Matching" , "Nearest Neighbor", 
-                                                           "Prognostic", "Mahalanobis"))
+res = matching_sim(10, 200, 5, lambda=4, alpha=-2, beta=0, gamma=0, y_dgp = y_dgp, X_dgp = x_dgp,
+                   lambda0=1, lambda1=1, gamma1=2, gamma0=2, m=2,
+                   estimators = c("MIQP-Fhat", "Greedy", "CEM", "Full Matching" , 
+                                  "Nearest Neighbor", "Prognostic", "Mahalanobis"))
 res$estimator = factor(res$estimator, levels=c("MIQP-Fhat","Greedy", "CEM", "Full Matching" , "Nearest Neighbor", 
                                                "Prognostic", "Mahalanobis"))
 ```

@@ -253,8 +253,13 @@ est_MIQP_fhat <- function(test_df, test_treated, n_test_treated,test_covs, bart_
                           beta=1, gamma0=1, gamma1=1, m=1, M=1e05) {
   mip_cates = vector('numeric', n_test_treated)
   mip_bins = array(NA, c(n_test_treated, p, 2))
-  fhat1 = predict(bart_fit, newdata =as.matrix(cbind(test_covs, treated=1)))
+  # fhat1 = predict(bart_fit, newx=as.matrix(cbind(test_covs, treated=1)))
+  # fhat1 = fhat1[ ,ncol(fhat1)]
+  # fhat0 = predict(bart_fit, newx=as.matrix(cbind(test_covs, treated=0)))
+  # fhat0 = fhat0[, ncol(fhat0)]
+  fhat1 = predict(bart_fit, newdata=as.matrix(cbind(test_covs, treated=1)))
   fhat0 = predict(bart_fit, newdata=as.matrix(cbind(test_covs, treated=0)))
+  
   message("Running MIQP-Fhat")
   for (l in 1:n_test_treated){
     i = test_treated[l]
@@ -351,6 +356,8 @@ get_CATEs <- function(inputs, estimators, hyperparameters) {
       bins[['MIQP-Variance']] <- miqp_variance_out$bins
     }    
     else if (estimators[i] == 'MIQP-Fhat') {
+      # lasso_fit = glmnet(as.matrix(dplyr::select(train_df, -Y)), 
+      #                    train_df$Y, family="gaussian", alpha=1)
       miqp_fhat_out <- 
         est_MIQP_fhat(test_df, test_treated, n_test_treated,test_covs, bart_fit,
                       n_train, p, lambda0=lambda0, lambda1=lambda1, 

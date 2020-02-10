@@ -413,7 +413,9 @@ setup_miqp_variance = function(xi, y_train, x_train, x_test, z_train,
            s17)
   
   lbs = c(sapply(1:p, function(j) min(c(x_train[, j], x_test[, j])))-1/M, 
-          sapply(1:p, function(j) min(c(x_train[, j], x_test[, j])))-1/M, 
+          sapply(1:p, function(j) min(c(x_train[, j], x_test[, j])))-#include <Rcpp.h>
+            #include <algorithm>
+            #include <chrono1/M, 
           rep(0, n_test),  rep(0, n_test * p), rep(0, n_test * p),
           rep(0, n_train * p), rep(0, n_train * p), rep(0, n_train))
   ubs = c(sapply(1:p, function(j) max(c(x_train[, j], x_test[, j])))+1/M, 
