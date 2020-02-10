@@ -1,6 +1,6 @@
 source('helpers.R')
 source("AB_MIPs.R")
-Rcpp::sourceCpp('greedy.cpp')
+Rcpp::sourceCpp('greedy2.cpp')
 
 require(MatchIt)
 require(cem)
@@ -289,7 +289,7 @@ get_CATEs <- function(inputs, estimators, hyperparameters) {
   n_estimators <- length(estimators)
   
   bins <- vector(mode = 'list', length = 5)
-  names(bins) <- c('Greedy', 'MIP-Explain', 'MIP-Predict', 'MIQP-Variance', 'MIQP-Fhat')
+  names(bins) <- c('Greedy', 'MIQP-Fhat')
   
   c(df, f, n, n_train, p,
     train_df, train_covs, train_control, train_treated,
@@ -317,10 +317,14 @@ get_CATEs <- function(inputs, estimators, hyperparameters) {
       CATEs[, i] <- est_nn(df, n_train, f, ratio = 1)
     }
     else if (estimators[i] == 'Greedy') {
-      CATEs[, i] <- greedy_cpp(as.matrix(test_covs[test_treated, ]), 
+      greedy_out <- greedy_cpp(as.matrix(test_covs[test_treated, ]), 
                                test_control - 1, test_treated - 1,
                                as.matrix(test_covs), as.logical(test_df$treated), test_df$Y,
-                               1, 5, bart_fit)
+                               1, 15, bart_fit)
+      CATEs[, i] <- greedy_out[[1]]
+      lower_bounds <- do.call(rbind, greedy_out[[2]])
+      upper_bounds <- do.call(rbind, greedy_out[[3]])
+      bins[['Greedy']] <- array(c(lower_bounds, upper_bounds), dim = c(dim(lower_bounds), 2))
     }
     else if (estimators[i] == 'MIP-Predict') {
       mip_predict_out <- 

@@ -1,39 +1,64 @@
 library(RColorBrewer)
 library(ggiraph)
 
-bin_plot <- function(mip_out, test_df, cov1, cov2, ...) {
+bin_plot <- function(bins, test_df, cov1, cov2, ...) {
   # Input covariates / dimensions for which you would like bins
   boundaries <- c(...)
-  test_df %<>% filter(treated)
-  bins <- mip_out$bins
+  test_control <- 
+    test_df %>%
+    filter(!treated) %>%
+    dplyr::select(cov1, cov2) %>%
+    `colnames<-`(c('X1', 'X2'))
+  test_treated <- 
+    test_df %>%
+    filter(treated)
   bins <- 
     cbind(bins[, c(cov1, cov2), 1], 
           bins[, c(cov1, cov2), 2],
-          test_df[, cov1],
-          test_df[, cov2]) %>%
+          test_treated[, cov1],
+          test_treated[, cov2]) %>%
     as.data.frame() %>%
     `colnames<-`(c('lower1', 'lower2', 
                    'upper1', 'upper2',
                    'point1', 'point2')) %>%
     mutate(id = 1:nrow(.),
            unmatched = is.na(lower1)) 
+  # browser()
   
-  p <- 
-    ggplot(data = bins, aes(color = unmatched)) + 
-    geom_rect_interactive(aes(xmin = lower1, xmax = upper1, 
+  if (sum(is.na(bins$lower1)) == 0) {
+    unmatched_units <- NULL
+  }
+  else {
+    unmatched_units <- filter(bins, is.na(lower1)) 
+  }
+  
+  p <-
+    ggplot(data = bins) +
+    geom_rect_interactive(aes(xmin = lower1, xmax = upper1,
                               ymin = lower2, ymax = upper2,
                               data_id = id),
-                          fill = 'grey', color = 'NA', 
-                          size = 0.5, alpha = 0) + 
+                          fill = 'grey', color = 'NA',
+                          size = 0.5, alpha = 0) +
     geom_point_interactive(data = filter(bins, !is.na(lower1)),
-                           aes(x = point1, y = point2, data_id = id)) +
-    geom_point(data = filter(bins, is.na(lower1)),
-               aes(x = point1, y = point2)) +
-    scale_color_manual(values= c('black', 'red'),
-                       name = 'Matched',
-                       labels = c('Yes', 'No'))+
+                           aes(x = point1, y = point2, data_id = id, color = 'Matched')) +
+    geom_point(data = test_control, aes(x = X1, y = X2, color = 'Control'), size = 0.2) +
     labs(x = 'x1', y = 'x2') +
     theme_bw()
+  
+  if (is.null(unmatched_units)) {
+    p <- p + 
+      scale_color_manual(values = c('red', 'black'),
+                         name = 'Type',
+                         labels = c('Control', 'Matched'))
+  }
+  else {
+    p <- 
+      p + 
+      geom_point(data = unmatched_units, aes(x = point1, y = point2, color = 'Unmatched')) +
+      scale_color_manual(values = c('red', 'black', 'blue'),
+                         name = 'Type',
+                         labels = c('Control', 'Matched', 'Unmatched'))
+  }
   
   if (length(boundaries) != 0) {
     p <- 
@@ -53,6 +78,10 @@ bin_plot <- function(mip_out, test_df, cov1, cov2, ...) {
              ))))
 }
 
+# scale_shape_manual(values = c('circle', 'diamond'), 
+#                    name = 'Treated', 
+#                    labels = c('Yes', 'No')) + 
+#   
 CATE_error_plot <- function(res) {
   perc_missing <- 
     res %>%
