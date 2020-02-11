@@ -32,7 +32,6 @@ e_dgp <- function(X) {
 } 
 ```
 
-
 2D: Constant 
 ```{r}
 y_dgp <- function(x, z, eps) {
@@ -41,23 +40,24 @@ y_dgp <- function(x, z, eps) {
     beta_tilde * z + eps
   return(Y)
 }
-# res <- matching_sim(10, 200, 2, X_dgp = X_dgp, y_dgp = y_dgp, e_dgp = e_dgp,
-#                    estimators =  c('MIQP-Fhat', 'Greedy', 'Nearest Neighbor', 
+# out <- matching_sim(5, 400, 2, X_dgp = X_dgp, y_dgp = y_dgp, e_dgp = e_dgp,
+#                    estimators =  c('MIQP-Grid', 'Greedy', 'Nearest Neighbor', 
 #                                    'CEM', 'Full Matching', 'Prognostic', 'Mahalanobis'))
 # 
-# res$estimator %<>% factor(levels = c('MIQP-Fhat', 'Greedy', 'Nearest Neighbor', 
+# res$estimator %<>% factor(levels = c('MIQP-Grid', 'Greedy', 'Nearest Neighbor', 
 #                                      'CEM', 'Full Matching', 'Prognostic', 'Mahalanobis'))
 
-res <- matching_sim(10, 200, 2, X_dgp = X_dgp, y_dgp = y_dgp, e_dgp = e_dgp,
-                   estimators =  c('Greedy', 'Nearest Neighbor', 
+out <- matching_sim(5, 400, 2, X_dgp = X_dgp, y_dgp = y_dgp, e_dgp = e_dgp,
+                   estimators =  c('MIQP-Grid', 'Greedy', 'Nearest Neighbor', 
                                    'CEM', 'Full Matching', 'Prognostic', 'Mahalanobis'))
 
-res$estimator %<>% factor(levels = c('Greedy', 'Nearest Neighbor', 
+res <- out[['CATEs']]
+res$estimator %<>% factor(levels = c('MIQP-Grid', 'Greedy', 'Nearest Neighbor', 
                                      'CEM', 'Full Matching', 'Prognostic', 'Mahalanobis'))
 
-saveRDS(res, 'conf_sim_constant.rds')
+saveRDS(out, 'new_sim_constant.rds')
 CATE_error_plot(res)
-ggsave(paste('conf_sim_constant.png'), 
+ggsave(paste('new_sim_constant.png'), 
        width = 10, height = 8, units = 'in', device = 'png', dpi = 300)
 ```
 
@@ -66,18 +66,18 @@ ggsave(paste('conf_sim_constant.png'),
 y_dgp <- function(x, z, eps) {
   beta_tilde <- 5
   Y <- 
-    beta_tilde * (x[, 1] < 1.5) * z + eps
+    beta_tilde * (x[, 1] > 1.5) * z + eps
   return(Y)
 }
-res <- matching_sim(10, 200, 2, X_dgp = X_dgp, y_dgp = y_dgp, e_dgp = e_dgp,
-                   estimators =  c('MIQP-Fhat', 'Greedy', 'Nearest Neighbor', 
+out <- matching_sim(5, 400, 2, X_dgp = X_dgp, y_dgp = y_dgp, e_dgp = e_dgp,
+                   estimators =  c('MIQP-Grid', 'Greedy', 'Nearest Neighbor', 
                                    'CEM', 'Full Matching', 'Prognostic', 'Mahalanobis'))
-
-res$estimator %<>% factor(levels = c('MIQP-Fhat', 'Greedy', 'Nearest Neighbor', 
+res <- out[['CATEs']]
+res$estimator %<>% factor(levels = c('MIQP-Grid', 'Greedy', 'Nearest Neighbor', 
                                      'CEM', 'Full Matching', 'Prognostic', 'Mahalanobis'))
-saveRDS(res, 'conf_sim_open_box_1d.rds')
+saveRDS(out, 'new_sim_open_box_1d.rds')
 CATE_error_plot(res)
-ggsave(paste('conf_sim_open_box_1d.png'), 
+ggsave(paste('new_sim_open_box_1d.png'), 
        width = 10, height = 8, units = 'in', device = 'png', dpi = 300)
 ```
 
@@ -89,28 +89,21 @@ y_dgp <- function(x, z, eps) {
     beta_tilde * (x[, 1] > 1 & x[, 1] < 2.5) * z + eps
   return(Y)
 }
-out <- matching_sim(1, 200, 2, X_dgp = X_dgp, y_dgp = y_dgp, e_dgp = e_dgp,
-                   estimators =  c('MIQP-Fhat', 'Greedy', 'Nearest Neighbor',
+out <- matching_sim(5, 400, 2, X_dgp = X_dgp, y_dgp = y_dgp, e_dgp = e_dgp,
+                   estimators =  c('MIQP-Grid', 'Greedy', 'Nearest Neighbor',
                                    'CEM', 'Full Matching', 'Prognostic', 'Mahalanobis'))
 
 res <- out[['CATEs']]
-res$estimator %<>% factor(levels = c('MIQP-Fhat', 'Greedy', 'Nearest Neighbor',
+res$estimator %<>% factor(levels = c('MIQP-Grid', 'Greedy', 'Nearest Neighbor',
                                      'CEM', 'Full Matching', 'Prognostic', 'Mahalanobis'))
 
-out <- matching_sim(1, 200, 2, X_dgp = X_dgp, y_dgp = y_dgp, e_dgp = e_dgp,
-                   estimators =  c('Greedy', 'Nearest Neighbor', 
-                                   'CEM', 'Full Matching', 'Prognostic', 'Mahalanobis'))
+saveRDS(out, 'new_sim_box_1d.rds')
+CATE_error_plot(res)
 
-res <- out[['CATEs']]
-res$estimator %<>% factor(levels = c('Greedy', 'Nearest Neighbor', 
-                                     'CEM', 'Full Matching', 'Prognostic', 'Mahalanobis'))
-saveRDS(res, 'conf_sim_box_1d.rds')
-# CATE_error_plot(res)
+# bin_plot(out$bins[[1]][['MIQP-Grid']], out$test_df[[1]], 1, 2, 1, 2.5, -5, 5)
 
-bin_plot(out$bins[[1]][['MIQP-Fhat']], out$test_df[[1]], 1, 2, 1, 2.5, -5, 5)
-
-# ggsave(paste('conf_sim_box_1d.png'), 
-#        width = 10, height = 8, units = 'in', device = 'png', dpi = 300)
+ggsave(paste('new_sim_box_1d.png'),
+       width = 10, height = 8, units = 'in', device = 'png', dpi = 300)
 ```
 
 2D: Open box in 2D
@@ -118,18 +111,18 @@ bin_plot(out$bins[[1]][['MIQP-Fhat']], out$test_df[[1]], 1, 2, 1, 2.5, -5, 5)
 y_dgp <- function(x, z, eps) {
   beta_tilde <- 5
   Y <- 
-    beta_tilde * (x[, 1] < 1.5 & x[, 2] < 1.5) * z + eps
+    beta_tilde * (x[, 1] > 1.5 & x[, 2] > 1.5) * z + eps
   return(Y)
 }
-res <- matching_sim(10, 200, 2, X_dgp = X_dgp, y_dgp = y_dgp, e_dgp = e_dgp,
-                   estimators =  c('MIQP-Fhat', 'Greedy', 'Nearest Neighbor', 
+out <- matching_sim(5, 400, 2, X_dgp = X_dgp, y_dgp = y_dgp, e_dgp = e_dgp,
+                   estimators =  c('MIQP-Grid', 'Greedy', 'Nearest Neighbor', 
                                    'CEM', 'Full Matching', 'Prognostic', 'Mahalanobis'))
-
-res$estimator %<>% factor(levels = c('MIQP-Fhat', 'Greedy', 'Nearest Neighbor', 
+res <- out[['CATEs']]
+res$estimator %<>% factor(levels = c('MIQP-Grid', 'Greedy', 'Nearest Neighbor', 
                                      'CEM', 'Full Matching', 'Prognostic', 'Mahalanobis'))
-saveRDS(res, 'conf_sim_open_box_2d.rds')
+saveRDS(out, 'new_sim_open_box_2d.rds')
 CATE_error_plot(res)
-ggsave(paste('conf_sim_open_box_2d.png'), 
+ggsave(paste('new_sim_open_box_2d.png'), 
        width = 10, height = 8, units = 'in', device = 'png', dpi = 300)
 ```
 
@@ -141,15 +134,15 @@ y_dgp <- function(x, z, eps) {
     beta_tilde * (x[, 1] > 1 & x[, 1] < 2 & x[, 2] > 3 & x[, 2] < 4) * z + eps
   return(Y)
 }
-res <- matching_sim(10, 200, 2, X_dgp = X_dgp, y_dgp = y_dgp, e_dgp = e_dgp,
-                   estimators =  c('MIQP-Fhat', 'Greedy', 'Nearest Neighbor', 
+out <- matching_sim(5, 400, 2, X_dgp = X_dgp, y_dgp = y_dgp, e_dgp = e_dgp,
+                   estimators =  c('MIQP-Grid', 'Greedy', 'Nearest Neighbor', 
                                    'CEM', 'Full Matching', 'Prognostic', 'Mahalanobis'))
-
-res$estimator %<>% factor(levels = c('MIQP-Fhat', 'Greedy', 'Nearest Neighbor', 
+res <- out[['CATEs']]
+res$estimator %<>% factor(levels = c('MIQP-Grid', 'Greedy', 'Nearest Neighbor', 
                                      'CEM', 'Full Matching', 'Prognostic', 'Mahalanobis'))
-saveRDS(res, 'conf_sim_box_2d.rds')
+saveRDS(out, 'new_sim_box_2d.rds')
 CATE_error_plot(res)
-ggsave(paste('conf_sim_box_2d.png'), 
+ggsave(paste('new_sim_box_2d.png'), 
        width = 10, height = 8, units = 'in', device = 'png', dpi = 300)
 ```
 
@@ -161,15 +154,16 @@ y_dgp <- function(x, z, eps) {
     beta_tilde * ((x[, 1] > 1 & x[, 1] < 2) | (x[, 1] > 3.75 & x[, 1] < 4.5)) * z + eps
   return(Y)
 }
-res <- matching_sim(10, 200, 2, X_dgp = X_dgp, y_dgp = y_dgp, e_dgp = e_dgp,
-                   estimators =  c('MIQP-Fhat', 'Greedy', 'Nearest Neighbor', 
+out <- matching_sim(5, 400, 2, X_dgp = X_dgp, y_dgp = y_dgp, e_dgp = e_dgp,
+                   estimators =  c('MIQP-Grid', 'Greedy', 'Nearest Neighbor', 
                                    'CEM', 'Full Matching', 'Prognostic', 'Mahalanobis'))
+res <- out[['CATEs']]
 
-res$estimator %<>% factor(levels = c('MIQP-Fhat', 'Greedy', 'Nearest Neighbor', 
+res$estimator %<>% factor(levels = c('MIQP-Grid', 'Greedy', 'Nearest Neighbor', 
                                      'CEM', 'Full Matching', 'Prognostic', 'Mahalanobis'))
-saveRDS(res, 'conf_sim_union_box_1d.rds')
+saveRDS(out, 'new_sim_union_box_1d.rds')
 CATE_error_plot(res)
-ggsave(paste('conf_sim_union_box_1d.png'), 
+ggsave(paste('new_sim_union_box_1d.png'), 
        width = 10, height = 8, units = 'in', device = 'png', dpi = 300)
 ```
 
@@ -182,55 +176,57 @@ y_dgp <- function(x, z, eps) {
                     (x[, 1] > 3.75 & x[, 1] < 4.5 & x[, 2] > 3 & x[, 2] < 4)) * z + eps
   return(Y)
 }
-res <- matching_sim(10, 200, 2, X_dgp = X_dgp, y_dgp = y_dgp, e_dgp = e_dgp,
-                   estimators =  c('MIQP-Fhat', 'Greedy', 'Nearest Neighbor', 
+out <- matching_sim(5, 400, 2, X_dgp = X_dgp, y_dgp = y_dgp, e_dgp = e_dgp,
+                   estimators =  c('MIQP-Grid', 'Greedy', 'Nearest Neighbor', 
                                    'CEM', 'Full Matching', 'Prognostic', 'Mahalanobis'))
 
-res$estimator %<>% factor(levels = c('MIQP-Fhat', 'Greedy', 'Nearest Neighbor', 
+res <- out[['CATEs']]
+
+res$estimator %<>% factor(levels = c('MIQP-Grid', 'Greedy', 'Nearest Neighbor', 
                                      'CEM', 'Full Matching', 'Prognostic', 'Mahalanobis'))
-saveRDS(res, 'conf_sim_union_box_2d.rds')
+saveRDS(out, 'new_sim_union_box_2d.rds')
 CATE_error_plot(res)
-ggsave(paste('conf_sim_union_box_2d.png'), 
+ggsave(paste('new_sim_union_box_2d.png'), 
        width = 10, height = 8, units = 'in', device = 'png', dpi = 300)
 ```
 
 2D: Linear in 1D
 ```{r}
 y_dgp <- function(x, z, eps) {
-  beta_tilde <- 5
+  beta_tilde <- 2.5
   Y <- 
     beta_tilde * x[, 1] * z + eps
   return(Y)
 }
-res <- matching_sim(10, 200, 2, X_dgp = X_dgp, y_dgp = y_dgp, e_dgp = e_dgp,
-                   estimators =  c('MIQP-Fhat', 'Greedy', 'Nearest Neighbor', 
+out <- matching_sim(5, 400, 2, X_dgp = X_dgp, y_dgp = y_dgp, e_dgp = e_dgp,
+                   estimators =  c('MIQP-Grid', 'Greedy', 'Nearest Neighbor', 
                                    'CEM', 'Full Matching', 'Prognostic', 'Mahalanobis'))
-
-res$estimator %<>% factor(levels = c('MIQP-Fhat', 'Greedy', 'Nearest Neighbor', 
+res <- out[['CATEs']]
+res$estimator %<>% factor(levels = c('MIQP-Grid', 'Greedy', 'Nearest Neighbor', 
                                      'CEM', 'Full Matching', 'Prognostic', 'Mahalanobis'))
-saveRDS(res, 'conf_sim_linear_1d.rds')
+saveRDS(out, 'new_sim_linear_1d.rds')
 CATE_error_plot(res)
-ggsave(paste('conf_sim_linear_1d.png'), 
+ggsave(paste('new_sim_linear_1d.png'), 
        width = 10, height = 8, units = 'in', device = 'png', dpi = 300)
 ```
 
 2D: Linear in 2D
 ```{r}
 y_dgp <- function(x, z, eps) {
-  beta_tilde <- 5
+  beta_tilde <- 2.5
   Y <- 
     beta_tilde * (x[, 1] + x[, 2] / 3) * z + eps
   return(Y)
 }
-res <- matching_sim(10, 200, 2, X_dgp = X_dgp, y_dgp = y_dgp, e_dgp = e_dgp,
-                   estimators =  c('MIQP-Fhat', 'Greedy', 'Nearest Neighbor', 
+out <- matching_sim(5, 400, 2, X_dgp = X_dgp, y_dgp = y_dgp, e_dgp = e_dgp,
+                   estimators =  c('MIQP-Grid', 'Greedy', 'Nearest Neighbor', 
                                    'CEM', 'Full Matching', 'Prognostic', 'Mahalanobis'))
-
-res$estimator %<>% factor(levels = c('MIQP-Fhat', 'Greedy', 'Nearest Neighbor', 
+res <- out[['CATEs']]
+res$estimator %<>% factor(levels = c('MIQP-Grid', 'Greedy', 'Nearest Neighbor', 
                                      'CEM', 'Full Matching', 'Prognostic', 'Mahalanobis'))
-saveRDS(res, 'conf_sim_linear_2d.rds')
+saveRDS(out, 'new_sim_linear_2d.rds')
 CATE_error_plot(res)
-ggsave(paste('conf_sim_linear_2d.png'), 
+ggsave(paste('new_sim_linear_2d.png'), 
        width = 10, height = 8, units = 'in', device = 'png', dpi = 300)
 ```
 
@@ -239,18 +235,19 @@ ggsave(paste('conf_sim_linear_2d.png'),
 y_dgp <- function(x, z, eps) {
   beta_tilde <- 2
   Y <- 
-    beta_tilde * (x[, 1] - 2.5) ^ 2 * z + eps
+    beta_tilde * (x[, 1] - 0) ^ 2 * z + eps
   return(Y)
 }
-res <- matching_sim(10, 200, 2, X_dgp = X_dgp, y_dgp = y_dgp, e_dgp = e_dgp,
-                   estimators =  c('Greedy', 'Nearest Neighbor', 
+out <- matching_sim(5, 400, 2, X_dgp = X_dgp, y_dgp = y_dgp, e_dgp = e_dgp,
+                   estimators =  c('MIQP-Grid', 'Greedy', 'Nearest Neighbor', 
                                    'CEM', 'Full Matching', 'Prognostic', 'Mahalanobis'))
 
-res$estimator %<>% factor(levels = c('Greedy', 'Nearest Neighbor', 
+res <- out[['CATEs']]
+res$estimator %<>% factor(levels = c('MIQP-Grid', 'Greedy', 'Nearest Neighbor', 
                                      'CEM', 'Full Matching', 'Prognostic', 'Mahalanobis'))
-saveRDS(res, 'conf_sim_quad_1d.rds')
+saveRDS(out, 'new_sim_quad_1d.rds')
 CATE_error_plot(res)
-ggsave(paste('conf_sim_quad_qd.png'), 
+ggsave(paste('new_sim_quad_qd.png'), 
        width = 10, height = 8, units = 'in', device = 'png', dpi = 300)
 ```
 
@@ -259,18 +256,18 @@ ggsave(paste('conf_sim_quad_qd.png'),
 y_dgp <- function(x, z, eps) {
   beta_tilde <- 2
   Y <- 
-    beta_tilde * ((x[, 1] - 2.5) ^ 2 + (x[, 2] - 4) ^ 2) * z + eps
+    beta_tilde * ((x[, 1] - 0) ^ 2 + (x[, 2] + 1) ^ 2) * z + eps
   return(Y)
 }
-res <- matching_sim(10, 200, 2, X_dgp = X_dgp, y_dgp = y_dgp, e_dgp = e_dgp,
-                   estimators =  c('MIQP-Fhat', 'Greedy', 'Nearest Neighbor', 
+out <- matching_sim(5, 400, 2, X_dgp = X_dgp, y_dgp = y_dgp, e_dgp = e_dgp,
+                   estimators =  c('MIQP-Grid', 'Greedy', 'Nearest Neighbor', 
                                    'CEM', 'Full Matching', 'Prognostic', 'Mahalanobis'))
-
-res$estimator %<>% factor(levels = c('MIQP-Fhat', 'Greedy', 'Nearest Neighbor', 
+res <- out[['CATEs']]
+res$estimator %<>% factor(levels = c('MIQP-Grid', 'Greedy', 'Nearest Neighbor', 
                                      'CEM', 'Full Matching', 'Prognostic', 'Mahalanobis'))
-saveRDS(res, 'conf_sim_quad_2d.rds')
+saveRDS(out, 'new_sim_quad_2d.rds')
 CATE_error_plot(res)
-ggsave(paste('conf_sim_quad_2d.png'), 
+ggsave(paste('new_sim_quad_2d.png'), 
        width = 10, height = 8, units = 'in', device = 'png', dpi = 300)
 ```
 

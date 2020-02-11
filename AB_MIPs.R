@@ -1,5 +1,25 @@
 library(Rcplex)
 
+generate_grid = function(xi, test_covs, d){
+  n = nrow(test_covs)
+  p = ncol(test_covs)
+  grid = NULL
+  for (k in 1:n){
+    xk = test_covs[k, ]
+    means = (xi + xk)/2
+    for(j in 1:p){
+      grdj = seq(min(xi[j], xk[j]), max(xi[j], xk[j]), length.out = d)
+      xgrdj = matrix(rep(means, d), d, p, byrow=T)
+      xgrdj[, j] = grdj
+      grid = rbind(grid, xgrdj)
+    }
+  }
+  # The grid is mysteriously a list because R is a very good language 
+  grid = (apply(grid,2, unlist))
+  colnames(grid) = colnames(test_covs)
+  return(grid)
+}
+
 setup_mip_explain = function(fhat, xi, y_test, x_test, lambda=1, alpha=0, m=1, M=1e10){
   Nop = length(y_test)
   p = length(xi)

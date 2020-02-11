@@ -54,11 +54,11 @@ matching_sim <- function(n_sims = 10, n_units = 100, p = 3, n_train = floor(n_un
                          estimators = c('Full Matching', 'Prognostic', 'CEM',
                                         'Mahalanobis', 'Nearest Neighbor', 'Greedy',
                                         'MIP-Explain', 'MIP-Predict', 'MIQP-Variance',
-                                        'MIQP-Fhat'),
+                                        'MIQP-Fhat', 'MIQP-Grid'),
                          black_box = 'xgb',
                          X_dgp = NULL, e_dgp=NULL, y_dgp = NULL,
-                         lambda = 1, alpha=0, beta=1, gamma=1, 
-                         lambda0=1, lambda1=1, gamma0=1, gamma1=1, m=1, M=1e5) {
+                         lambda = 1, alpha=0, beta=2, gamma=1, 
+                         lambda0=0, lambda1=0, gamma0=2, gamma1=2, m=1, M=1e5) {
   all_CATEs <- NULL
   all_bins <- vector('list', length = n_sims)
   # all_train_dfs <- vector('list', length = n_sims)
