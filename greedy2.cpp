@@ -158,7 +158,7 @@ List greedy_cpp(NumericMatrix test_treated_covs, IntegerVector test_control, Int
       CATE[i] = get_greedy_CATE(MG, test_treatments, test_outcomes);
       // std::cout << "Unit " << i << "has min_var = " << min(bin_var) << std::endl;
     }
-    while (min(bin_var) < 1.1 * prev_var);
+    while (min(bin_var) < 2 * 5 * 2.5 * prev_var);
     all_A.push_back(A);
     all_B.push_back(B);
   }
