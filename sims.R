@@ -74,7 +74,7 @@ matching_sim <- function(n_sims = 10, n_units = 100, p = 3, n_train = floor(n_un
       inputs %>%
       get_CATEs(estimators, hyperparameters)
     
-    HTE_test_treated = HTE[inputs[["test_treated"]]]
+    HTE_test_treated = HTE[(n_train + 1):n_units][test_df$treated]
     
     this_sim_CATEs <- 
       est_out %>%

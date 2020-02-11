@@ -884,20 +884,25 @@ generate_grid = function(xi, test_covs, d){
 }
 
 p=2
-y_dgp = function(X, Z, eps){
-  beta = c(2, 4)
-  return(1 + Z * 5 + X %*% beta + eps)
-}
-x_dgp = function(n, p){
-  return(matrix(runif(n*p, 0, 1), n, p))
+y_dgp <- function(x, z, eps) {
+  beta_tilde <- 2
+  Y <- 
+    beta_tilde * ((x[, 1] - 0) ^ 2 + (x[, 2] + 1) ^ 2) * z #+ eps
+  return(Y)
 }
 c(df, HTE) %<-% simulate_data(200, p, y_dgp = y_dgp, X_dgp=x_dgp)
 c(df, f, n, n_train, p,
     train_df, train_covs, train_control, train_treated,
     test_df, test_covs, test_control, test_treated, 
     n_test_control, n_test_treated, 
-    bart_fit, counterfactuals) %<-% estimator_inputs(df, 100, 200)
+    bart_fit, counterfactuals) %<-% estimator_inputs(df, 100, 200, 'xgb')
 HTE_test_treated = HTE[test_treated]
+
+## Predict using others
+ftrue1 = y_dgp(df[test_treated, 1:2], 1, 0)
+ftrue0 = y_dgp(df[test_treated, 1:2], 0, 0)
+mean(abs((ftrue1 - ftrue0) - HTE_test_treated))
+
 
 alpha=0
 lambda0=0
@@ -909,10 +914,6 @@ m=1
 M=1e5
 mip_cates = vector('numeric', n_test_treated)
 mip_bins = array(NA, c(n_test_treated, p, 2))
-# fhat1 = predict(bart_fit, newx=as.matrix(cbind(test_covs, treated=1)))
-# fhat1 = fhat1[ ,ncol(fhat1)]
-# fhat0 = predict(bart_fit, newx=as.matrix(cbind(test_covs, treated=0)))
-# fhat0 = fhat0[, ncol(fhat0)]
 message("Running MIQP-Fhat")
 for (l in 1:n_test_treated){
   i = test_treated[l]

@@ -289,7 +289,7 @@ est_MIQP_fhat <- function(test_df, test_treated, n_test_treated,test_covs, bart_
 }
 
 est_MIQP_grid <- function(test_df, test_treated, n_test_treated,test_covs, bart_fit,
-                          n_train, p, lambda0 = 10, lambda1 = 10, alpha = 1, 
+                          n_train, p, lambda0 = 10, lambda1 = 10, alpha = 0, 
                           beta = 1, gamma0 = 1, gamma1 = 1, m = 1, M = 1e05, grid_size = 3) {
   mip_cates = vector('numeric', n_test_treated)
   mip_bins = array(NA, c(n_test_treated, p, 2))
