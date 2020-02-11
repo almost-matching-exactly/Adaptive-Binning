@@ -1,6 +1,28 @@
 library(RColorBrewer)
 library(ggiraph)
 
+size_vs_error_plot <- function(sim_out, estimator, sim_number = 1) {
+  CATEs <- sim_out$CATEs %>%
+    filter(estimator == !!enquo(estimator))
+  bins <- sim_out$bins[[sim_number]] %>%
+    extract2(estimator)
+  
+  areas <- 
+    (bins[, , 2] - bins[, , 1]) %>%
+    apply(1, prod)
+  
+  ggdata <- 
+    data.frame(Error = abs(CATEs$actual - CATEs$predicted), 
+               Area = areas)
+  
+  p <- 
+    ggplot(data = ggdata, aes(x = Area, y = Error)) + 
+    geom_point() + 
+    labs(x = 'Box Area', y = 'CATE Error')
+  print(p)
+}
+
+
 bin_plot <- function(bins, test_df, cov1, cov2, ...) {
   # Input covariates / dimensions for which you would like bins
   boundaries <- c(...)

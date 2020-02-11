@@ -238,17 +238,17 @@ y_dgp <- function(x, z, eps) {
     beta_tilde * (x[, 1] - 0) ^ 2 * z + eps
   return(Y)
 }
-out <- matching_sim(5, 400, 2, X_dgp = X_dgp, y_dgp = y_dgp, e_dgp = e_dgp,
-                   estimators =  c('MIQP-Grid', 'Greedy', 'Nearest Neighbor', 
+out <- matching_sim(1, 400, 2, X_dgp = X_dgp, y_dgp = y_dgp, e_dgp = e_dgp,
+                   estimators =  c('Greedy', 'Nearest Neighbor', 
                                    'CEM', 'Full Matching', 'Prognostic', 'Mahalanobis'))
 
 res <- out[['CATEs']]
-res$estimator %<>% factor(levels = c('MIQP-Grid', 'Greedy', 'Nearest Neighbor', 
+res$estimator %<>% factor(levels = c('Greedy', 'Nearest Neighbor', 
                                      'CEM', 'Full Matching', 'Prognostic', 'Mahalanobis'))
-saveRDS(out, 'new_sim_quad_1d.rds')
+# saveRDS(out, 'new_sim_quad_1d.rds')
 CATE_error_plot(res)
-ggsave(paste('new_sim_quad_qd.png'), 
-       width = 10, height = 8, units = 'in', device = 'png', dpi = 300)
+# ggsave(paste('new_sim_quad_qd.png'), 
+#        width = 10, height = 8, units = 'in', device = 'png', dpi = 300)
 ```
 
 2D: Quadratic in 2D
@@ -275,16 +275,17 @@ Load Data
 ```{r}
 require(stringr)
 require(xtable)
-path <- './simresults/data/'
+path <- './'
 files <- list.files(path)
-n_sim_types <- sum(sapply(files, function(file) str_detect(file, 'conf')))
+n_sim_types <- sum(sapply(files, function(file) str_detect(file, 'new_sim')))
 sim_results <- data.frame(actual = NULL, predicted = NULL, estimator = NULL)
 CATEs_per_sim_type <- NULL
 for (file in files) {
-  if (str_detect(file, 'conf')) {
+  if (str_detect(file, 'new_sim') & str_detect(file, '.rds')) {
+    print(file)
     tmp <- readRDS(paste0(path, file))
-    sim_results %<>% rbind(tmp)
-    CATEs_per_sim_type %<>% c(nrow(tmp))
+    sim_results %<>% rbind(tmp$CATEs)
+    CATEs_per_sim_type %<>% c(nrow(tmp$CATEs))
   }
 }
 
