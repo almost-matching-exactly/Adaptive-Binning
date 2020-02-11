@@ -241,7 +241,76 @@ setup_miqp_variance = function(xi, y_train, x_train, x_test, z_train,
   b6 = rep(NA, n_train * p)
   l = 1
   for (k in 1:n_train){
-    for (j in 1:p){
+    for (j in 1:p){generate_grid = function(xi, test_covs, d){
+      n = nrow(test_covs)
+      p = ncol(test_covs)
+      grid = NULL
+      for (k in 1:n){
+        xk = test_covs[k, ]
+        means = (xi + xk)/2
+        for(j in 1:p){
+          grdj = seq(min(xi[j], xk[j]), max(xi[j], xk[j]), length.out = d)
+          xgrdj = matrix(rep(means, d), d, p, byrow=T)
+          xgrdj[, j] = grdj
+          grid = rbind(grid, xgrdj)
+        }
+      }
+      # The grid is mysteriously now a list because R is a very good language 
+      grid = (apply(grid,2, unlist))
+      colnames(grid) = colnames(test_covs)
+      return(grid)
+    }
+    
+    p=2
+    y_dgp = function(X, Z, eps){
+      beta = c(2, 4)
+      return(1 + Z * 5 + X %*% beta + eps)
+    }
+    x_dgp = function(n, p){
+      return(matrix(runif(n*p, 0, 1), n, p))
+    }
+    c(df, HTE) %<-% simulate_data(200, p, y_dgp = y_dgp, X_dgp=x_dgp)
+    c(df, f, n, n_train, p,
+      train_df, train_covs, train_control, train_treated,
+      test_df, test_covs, test_control, test_treated, 
+      n_test_control, n_test_treated, 
+      bart_fit, counterfactuals) %<-% estimator_inputs(df, 100, 200)
+    HTE_test_treated = HTE[test_treated]
+    
+    alpha=0
+    lambda0=0
+    lambda1=0
+    gamma0=2
+    gamma1=2
+    beta=2
+    m=1
+    M=1e5
+    mip_cates = vector('numeric', n_test_treated)
+    mip_bins = array(NA, c(n_test_treated, p, 2))
+    # fhat1 = predict(bart_fit, newx=as.matrix(cbind(test_covs, treated=1)))
+    # fhat1 = fhat1[ ,ncol(fhat1)]
+    # fhat0 = predict(bart_fit, newx=as.matrix(cbind(test_covs, treated=0)))
+    # fhat0 = fhat0[, ncol(fhat0)]
+    message("Running MIQP-Fhat")
+    for (l in 1:n_test_treated){
+      i = test_treated[l]
+      message(paste("Matching unit", l, "of", n_test_treated), "\r", appendLF = FALSE); flush.console()
+      
+      grid = generate_grid(test_covs[i, ], test_covs[-i, ], 3)
+      fhat1 = predict(bart_fit, newdata=as.matrix(cbind(grid, treated=1)))
+      fhat0 = predict(bart_fit, newdata=as.matrix(cbind(grid, treated=0)))
+      
+      fhati1 = predict(bart_fit, newdata=as.matrix(cbind(test_covs, treated=1)))[i]
+      fhati0 = predict(bart_fit, newdata=as.matrix(cbind(test_covs, treated=0)))[i]
+      mip_pars =  setup_miqp_fhat(xi = as.numeric(test_covs[i, ]),
+                                  x_test = grid,
+                                  z_test = rep(1, nrow(grid)),
+                                  fhati1=fhati1,
+                                  fhati0=fhati0,
+                                  fhat1=fhat1,
+                                  fhat0=fhat0, 
+                                  alpha=alpha, lambda0=lambda0, lambda1=lambda1,
+                                  gamma0=gamma
       a6[l, v_start + l] = M
       a6[l, b_start + j] = -1 
       b6[l] = -x_train[k, j] + M - 1/M
@@ -854,7 +923,7 @@ setup_miqp_fhat = function(xi, fhati1, fhati0, fhat0, fhat1, x_test, z_test,
   
   # Constraint 16 sum(wik) >= m
   a16 = matrix(0, 1, n_vars)
-  a16[1, (w_start+1):(w_start + n_test)] = 1#1-z_test
+  a16[1, (w_start+1):(w_start + n_test)] = z_test
   rownames(a16) = "C16"
   b16 = m
   names(b16) = "C16"
