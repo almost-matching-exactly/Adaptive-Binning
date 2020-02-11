@@ -763,25 +763,25 @@ bin_plot(mip_bins, test_df, 1, 2, 0.1, 0.6, 0.4, 0.8)
 ## Grid
 
 ```{r "Bins2"}
-generate_grid = function(xi, test_covs, d){
-  n = nrow(test_covs)
-  p = ncol(test_covs)
-  grid = NULL
-  for (k in 1:n){
-    xk = test_covs[k, ]
-    means = (xi + xk)/2
-    for(j in 1:p){
-      grdj = seq(min(xi[j], xk[j]), max(xi[j], xk[j]), length.out = d)
-      xgrdj = matrix(rep(means, d), d, p, byrow=T)
-      xgrdj[, j] = grdj
-      grid = rbind(grid, xgrdj)
-    }
-  }
-  # The grid is mysteriously a list because R is a very good language 
-  grid = (apply(grid,2, unlist))
-  colnames(grid) = colnames(test_covs)
-  return(grid)
-}
+# generate_grid = function(xi, test_covs, d){
+#   n = nrow(test_covs)
+#   p = ncol(test_covs)
+#   grid = NULL
+#   for (k in 1:n){
+#     xk = test_covs[k, ]
+#     means = (xi + xk)/2
+#     for(j in 1:p){
+#       grdj = seq(min(xi[j], xk[j]), max(xi[j], xk[j]), length.out = d)
+#       xgrdj = matrix(rep(means, d), d, p, byrow=T)
+#       xgrdj[, j] = grdj
+#       grid = rbind(grid, xgrdj)
+#     }
+#   }
+#   # The grid is mysteriously a list because R is a very good language 
+#   grid = (apply(grid,2, unlist))
+#   colnames(grid) = colnames(test_covs)
+#   return(grid)
+# }
 
 
 p=2
@@ -797,7 +797,7 @@ c(df, f, n, n_train, p,
     train_df, train_covs, train_control, train_treated,
     test_df, test_covs, test_control, test_treated, 
     n_test_control, n_test_treated, 
-    bart_fit, counterfactuals) %<-% estimator_inputs(df, 100, 200)
+    bart_fit, counterfactuals) %<-% estimator_inputs(df, 100, 200, black_box = 'xgb')
 HTE_test_treated = HTE[test_treated]
 
 alpha=0
