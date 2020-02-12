@@ -8,6 +8,10 @@ require(dbarts)
 require(magrittr)
 require(xgboost)
 
+est_true <- function(df, Y0true){
+  return(est_prog(df, Y0true))
+}
+
 est_fullmatch <- function(df, n, n_train, f) {
   m.out <- suppressWarnings(matchit(f, data = df, method = 'full'))
   HTE <- vector('numeric', length = n)
@@ -21,7 +25,7 @@ est_fullmatch <- function(df, n, n_train, f) {
   return(HTE)
 }
 
-est_prog <- function(df, counterfactuals) {
+est_prog <- function(df, counterfactuals, replace=TRUE) {
   treated_outcomes <- df$Y[df$treated]
   control_outcomes <- df$Y[!df$treated]
   HTE <- rep(NA, length(treated_outcomes))
@@ -31,7 +35,8 @@ est_prog <- function(df, counterfactuals) {
     }
     match <- which.min(abs(counterfactuals[i] - control_outcomes))
     HTE[i] <- treated_outcomes[i] - control_outcomes[match]
-    control_outcomes <- control_outcomes[-match]
+    if (!replace)
+      control_outcomes <- control_outcomes[-match]
   }
   return(HTE)
 }
@@ -368,6 +373,8 @@ get_CATEs <- function(inputs, estimators, hyperparameters) {
       lower_bounds <- do.call(rbind, greedy_out[[2]])
       upper_bounds <- do.call(rbind, greedy_out[[3]])
       bins[['Greedy']] <- array(c(lower_bounds, upper_bounds), dim = c(dim(lower_bounds), 2))
+    } else if (estimators[i] == 'True'){
+      CATEs[, i] <- est_true(df, )
     }
     else if (estimators[i] == 'MIP-Predict') {
       mip_predict_out <- 

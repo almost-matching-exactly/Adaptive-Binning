@@ -883,82 +883,155 @@ generate_grid = function(xi, test_covs, d){
   return(grid)
 }
 
-p=2
-y_dgp <- function(x, z, eps) {
+y_dgp_quadratic <- function(x, z, eps) {
   beta_tilde <- 2
-  Y <- 
-    beta_tilde * ((x[, 1] - 0) ^ 2 + (x[, 2] + 1) ^ 2) * z #+ eps
+  gamma_tilde <- 1
+  Y <-
+    beta_tilde * rowSums(x^2) * z +
+    gamma_tilde * rowSums(x^2) + eps
   return(Y)
 }
-c(df, HTE) %<-% simulate_data(200, p, y_dgp = y_dgp, X_dgp=x_dgp)
-c(df, f, n, n_train, p,
-    train_df, train_covs, train_control, train_treated,
-    test_df, test_covs, test_control, test_treated, 
-    n_test_control, n_test_treated, 
-    bart_fit, counterfactuals) %<-% estimator_inputs(df, 100, 200, 'xgb')
-HTE_test_treated = HTE[test_treated]
-
-## Predict using others
-ftrue1 = y_dgp(df[test_treated, 1:2], 1, 0)
-ftrue0 = y_dgp(df[test_treated, 1:2], 0, 0)
-mean(abs((ftrue1 - ftrue0) - HTE_test_treated))
-
-
+y_dgp_linear_irr <- function(x, z, eps) {
+  beta_tilde <- 3
+  gamma_tilde <- 2
+  Y <- 
+    beta_tilde * (x[, 1] - 0) * z +
+    gamma_tilde * (x[, 1] - 0) + eps
+  return(Y)
+}
+y_dgp_constant_irr <- function(x, z, eps) {
+  beta_tilde <- 3
+  gamma_tilde <- 2
+  Y <- 
+    beta_tilde * z +
+    gamma_tilde * (x[, 1] - 0) + eps
+  return(Y)
+}
+y_dgp_simple <- function(x, z, eps) {
+  beta_tilde <- 3
+  gamma_tilde <- 2
+  Y <- beta_tilde * z + eps
+  return(Y)
+}
+y_dgp_box = function(X, Z, eps){
+  ind = (X[, 1] > 0.5  & X[, 2] > 0.5)
+  return(1 + Z * 5 + ind * 3 + eps)
+}
+y_dgp_bart = function(X, Z, eps){
+  Y<- 10 * sin(pi * X[, 1]*X[, 2]) + 20 *(X[, 3] - 0.5)^2 + 10*X[, 4] + 5*X[, 5] + 5 * X[, 3] * Z + eps
+  return(Y)
+}
+x_dgp = function(n, p){
+  return(matrix(runif(n*p, 0, 1), n, p))
+}
+########################################################
+# Simulations
+########################################################
+p=5
+y_dgp = y_dgp_bart
+nsims = 5
+n = 400
+n_train = 200
 alpha=0
 lambda0=0
 lambda1=0
 gamma0=2
 gamma1=2
-beta=2
+beta=3
 m=1
 M=1e5
-mip_cates = vector('numeric', n_test_treated)
-mip_bins = array(NA, c(n_test_treated, p, 2))
-message("Running MIQP-Fhat")
-for (l in 1:n_test_treated){
-  i = test_treated[l]
-  message(paste("Matching unit", l, "of", n_test_treated), "\r", appendLF = FALSE); flush.console()
+all_CATEs = NULL
+for (sim in 1:nsims){
+  c(df, HTE) %<-% simulate_data(n, p, y_dgp = y_dgp, X_dgp=x_dgp)
+  inputs <- estimator_inputs(df, n_train, n, 'BART')
+  c(df, f, n, n_train, p,
+      train_df, train_covs, train_control, train_treated,
+      test_df, test_covs, test_control, test_treated, 
+      n_test_control, n_test_treated, 
+      bart_fit, counterfactuals) %<-% inputs
+  HTE_test_treated = HTE[(n_train+1):n][test_df$treated]
   
-  grid = generate_grid(test_covs[i, ], test_covs[-i, ], 3)
-  fhat1 = predict(bart_fit, newdata=as.matrix(cbind(grid, treated=1)))
-  fhat0 = predict(bart_fit, newdata=as.matrix(cbind(grid, treated=0)))
+  # Matching methods
+  m_estimators <- c('Full Matching', 'Prognostic', 'CEM', 'Mahalanobis', 'Nearest Neighbor')
+  est_out <- suppressWarnings(get_CATEs(inputs, m_estimators, hyperparameters = list(0, 0, 0, 0, 0, 0, 0, 0, 0, 0)))
+  CATEs = est_out$CATEs
   
-  fhati1 = predict(bart_fit, newdata=as.matrix(cbind(test_covs, treated=1)))[i]
-  fhati0 = predict(bart_fit, newdata=as.matrix(cbind(test_covs, treated=0)))[i]
-  mip_pars =  setup_miqp_fhat(xi = as.numeric(test_covs[i, ]),
-                              x_test = grid,
-                              z_test = rep(1, nrow(grid)),
-                              fhati1=fhati1,
-                              fhati0=fhati0,
-                              fhat1=fhat1,
-                              fhat0=fhat0, 
-                              alpha=alpha, lambda0=lambda0, lambda1=lambda1,
-                              gamma0=gamma0, gamma1=gamma1, beta=beta, m=m, M=M)
-  sol <- do.call(Rcplex, c(mip_pars, list(objsense="max", control=list(trace=0))))
-  mip_out = recover_pars(sol, n_train, nrow(test_covs), p)
+  ## best match on true expected CF
+  ftrue0 = y_dgp(test_covs, 0, 0)
+  CATEs = cbind(CATEs, est_prog(test_df, ftrue0[test_treated]))
+  message(paste("Mean best CF error", mean(abs(CATEs[, 6] - HTE_test_treated))))
   
-  mip_bins[l, ,1] = mip_out$a
-  mip_bins[l, ,2] = mip_out$b
-  #mip_cates[l] = test_df$Y[i] - mean(test_df$Y[test_df$treated==0][mip_out$w>=0.1])
+  ## BART
+  fhat1 = colMeans(predict(bart_fit, test = as.matrix(cbind(test_covs, treated=1))))
+  fhat0 = colMeans(predict(bart_fit, test = as.matrix(cbind(test_covs, treated=0))))
+  bcates = (fhat1 - fhat0)
+  CATEs = cbind(CATEs, bcates[test_treated])
+  message(paste("Mean BART error", mean(abs(CATEs[, 7] - HTE_test_treated))))
+  
+  ## BART overfit v1
+  ofcates = rep(NA, n_test_treated)
+  for (l in 1:n_test_treated){
+    i = test_treated[l]
+    match0 = which.min(abs(fhat0[i] - test_df$Y[test_control]))
+    match1 = which.min(abs(fhat1[i] - test_df$Y[test_treated]))
+    ofcates[l] = test_df$Y[test_treated][match1] - test_df$Y[test_control][match0]
+  }
+  CATEs = cbind(CATEs, ofcates)
+  
+  ## BART overfit v2
+  ofcates2 = rep(NA, n_test_treated)
+  for (l in 1:n_test_treated){
+    i = test_treated[l]
+    match0 = which.min(abs(fhat0[i] - fhat0[test_control]))
+    match1 = which.min(abs(fhat1[i] - fhat1[test_treated]))
+    ofcates2[l] = test_df$Y[test_treated][match1] - test_df$Y[test_control][match0]
+  }
+  CATEs = cbind(CATEs, ofcates2)
+  
+  ## MIP
+  mip_cates = vector('numeric', n_test_treated)
+  mip_cates_both = vector('numeric', n_test_treated)
+  mip_bins = array(NA, c(n_test_treated, p, 2))
+  message("Running MIQP-Fhat")
+  for (l in 1:n_test_treated){
+    i = test_treated[l]
+    message(paste("Matching unit", l, "of", n_test_treated), "\r", appendLF = FALSE); flush.console()
+    
+    mip_pars =  setup_miqp_fhat(xi = as.numeric(test_covs[i, ]),
+                                x_test = as.matrix(test_covs[-i, ]),
+                                z_test = test_df$treated[-i],
+                                fhati1=fhat1[i],
+                                fhati0=fhat0[i],
+                                fhat1=fhat1[-i],
+                                fhat0=fhat0[-i], 
+                                alpha=alpha, lambda0=lambda0, lambda1=lambda1,
+                                gamma0=gamma0/sd(fhat0), gamma1=gamma1/sd(fhat1), 
+                                beta=beta, m=m, M=M)
+    sol <- do.call(Rcplex, c(mip_pars, list(objsense="max", control=list(trace=0))))
+    mip_out = recover_pars(sol, n_train, nrow(test_covs), p)
+  
+    mip_bins[l, ,1] = mip_out$a
+    mip_bins[l, ,2] = mip_out$b
 
-  mg = make_mg(test_covs, mip_out$a, mip_out$b)
-  #mip_cates[l] = mean(test_df$Y[mg][test_df$treated[mg]]) - mean(test_df$Y[mg][!test_df$treated[mg]])
-  mip_cates[l] = test_df$Y[i] - mean(test_df$Y[mg][!test_df$treated[mg]])
+    mg = make_mg(test_covs, mip_out$a, mip_out$b)
+    mip_cates[l] = test_df$Y[i] - mean(test_df$Y[mg][!test_df$treated[mg]])
+    mip_cates_both[l] = mean(test_df$Y[mg][test_df$treated[mg]]) - mean(test_df$Y[mg][!test_df$treated[mg]])
+  }
+  message("")
+  CATEs <- cbind(CATEs, mip_cates)
+  CATEs <- cbind(CATEs, mip_cates_both)
+  message(paste("Mean MIP error", mean(abs(CATEs[, 8] - HTE_test_treated), na.rm=T)))
+  
+  fcates = format_CATEs(CATEs, true_CATE = HTE_test_treated,
+                      estimators = c('Full Matching', 'Prognostic', 'CEM', 
+                                     'Mahalanobis', 'Nearest Neighbor',
+                                     'Best CF', 'BART', 'BART of 1', 'BART of 2',  'MIP', 'MIP_both'))
+  all_CATEs <- rbind(all_CATEs, fcates)
+  message(sprintf('%d of %d simulations completed', sim, nsims))
 }
-message("\n")
-
-
-me = abs(HTE_test_treated - mip_cates)
-print(mean(me))
-
-fhat1 = predict(bart_fit, newdata = as.matrix(cbind(test_covs, treated=1)))
-fhat0 = predict(bart_fit, newdata = as.matrix(cbind(test_covs, treated=0)))
-bcates = fhat1[test_treated] - fhat0[test_treated]
-be = mean(abs(HTE_test_treated - bcates))
-print(be)
-
-bin_plot(mip_bins, test_df, 1, 2, 0.1, 0.6, 0.4, 0.8)
-
+CATE_error_plot(all_CATEs)
+print(summarize_CATEs(all_CATEs))
+#bin_plot(mip_bins, test_df, 1, 2)
 ```
 
 

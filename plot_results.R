@@ -109,18 +109,13 @@ CATE_error_plot <- function(res) {
   estimators <- perc_missing$estimator
   n_estimators <- length(estimators)
   
-  max_error_plotted <- quantile(abs(res$predicted - res$actual), probs = .9, na.rm = T)
-  
-  res %<>%
-    filter(is.na(predicted) | abs(predicted - actual) <= max_error_plotted)
-    
   group_means <- 
     res %>%
     group_by(estimator) %>%
     summarize(mean = mean(abs(predicted - actual), na.rm = TRUE))
   
   baseline_estimators <- intersect(estimators, 
-                                   c('Greedy',  'MIP-Explain', 'MIP-Predict', 'MIQP-Variance'))
+                                   c('Greedy', 'MIP', 'MIP-Explain', 'MIP-Predict', 'MIQP-Variance'))
   
   baseline_mean <- 
     group_means %>%
@@ -128,10 +123,16 @@ CATE_error_plot <- function(res) {
     pull(mean) %>%
     min()
   
+  max_error_plotted <- quantile(abs(res$predicted - res$actual), probs = .975, na.rm = T)
+  
+  res %<>%
+    filter(is.na(predicted) | abs(predicted - actual) <= max_error_plotted)
+    
   lower_than <- group_means$mean <= baseline_mean
+  lower_than[is.na(lower_than)] = FALSE
   
   colors = brewer.pal(3, "Set1")[if_else(lower_than, 2, 1)]
-  colors[1:length(baseline_estimators)] = brewer.pal(3, "Set1")[3]
+  colors[which(estimators %in% baseline_estimators)] = brewer.pal(3, "Set1")[3]
   
   p <- 
     ggplot(data = res) + 

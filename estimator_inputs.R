@@ -26,7 +26,7 @@ estimator_inputs <- function(df, n_train, n_units, black_box) {
   
   n_test_control <- length(test_control)
   n_test_treated <- length(test_treated)
-  
+    
   if (black_box == 'BART') {
     black_box_fit <- bart(x.train = dplyr::select(train_df, -Y),
                      y.train = train_df$Y,
