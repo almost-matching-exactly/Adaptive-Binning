@@ -363,7 +363,7 @@ get_CATEs <- function(inputs, estimators, hyperparameters) {
       greedy_out <- greedy_cpp(as.matrix(test_covs[test_treated, ]), 
                                test_control - 1, test_treated - 1,
                                as.matrix(test_covs), as.logical(test_df$treated), test_df$Y,
-                               1, 15, bart_fit)
+                               1, 15, 1.5, bart_fit)
       CATEs[, i] <- greedy_out[[1]]
       lower_bounds <- do.call(rbind, greedy_out[[2]])
       upper_bounds <- do.call(rbind, greedy_out[[3]])

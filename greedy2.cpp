@@ -1,9 +1,12 @@
 #include <Rcpp.h>
 #include <algorithm>
 #include <chrono>
+#include <map>
 using namespace Rcpp;
+using std::find;
 
 Function expansion_variance("expansion_variance");
+Function how_curvy("how_curvy");
 
 double get_greedy_CATE(IntegerVector MG, LogicalVector test_treatments, 
                        NumericVector test_outcomes) {
@@ -30,7 +33,7 @@ double get_greedy_CATE(IntegerVector MG, LogicalVector test_treatments,
 // [[Rcpp::export]]
 List greedy_cpp(NumericMatrix test_treated_covs, IntegerVector test_control, IntegerVector test_treated,
                 NumericMatrix test_covs, LogicalVector test_treatments, NumericVector test_outcomes,
-                int variation, int n_req_matches, SEXP bart_fit) {
+                int variation, int n_req_matches, double multiplier, SEXP bart_fit) {
   
   auto start = std::chrono::steady_clock::now();
   
@@ -45,22 +48,28 @@ List greedy_cpp(NumericMatrix test_treated_covs, IntegerVector test_control, Int
   List all_B = List::create();
   
   // NumericVector variances; 
-  double prev_var;
   
+  double prev_var; 
+  int n_matched_controls;
   // For each test-treated unit
   for (int i = 0; i < n_test_treated; i++) {
     std::cout << "Matching unit " << i + 1 << " of " << n_test_treated << "\r" << std::flush;
-    
+    // min_ever_var = 10000.0;
     // Initialize the unit to be trivially in its own MG
     IntegerVector MG(1, test_treated[i]);
+    
+    n_matched_controls = 0; 
     
     // Lower and upper bounds initialized to be unit's covariate values 
     NumericVector A = test_treated_covs(i, _);
     NumericVector B = test_treated_covs(i, _);
-    NumericVector bin_var(p, R_PosInf); // Variance of expansion along each cov
+    NumericVector bin_var(p, 10000.0); // Variance of expansion along each cov
     // While we haven't matched enough units 
     do {
-      prev_var = min(bin_var) + 0.1;
+      prev_var = min(bin_var) + 0.01;
+      // if (min(bin_var) < min_ever_var) {
+      //   min_ever_var = min(bin_var) + 0.02;
+      // }
       // std::cout << "Unit " << i << "has prev_var = " << prev_var << std::endl;
       // std::cout << "The bins are: \n";
       // for (int l = 0; l < A.size(); l++) {
@@ -68,9 +77,10 @@ List greedy_cpp(NumericMatrix test_treated_covs, IntegerVector test_control, Int
       // }
       NumericVector potential_matches;
       // Find units closest along each axis
-      if (variation != 2) { // Only expand to control units
+      if (variation != 2) { 
         // Don't consider expanding to any units already in the MG
-        potential_matches = setdiff(test_control, MG);
+        // Don't take union every time 
+        potential_matches = setdiff(union_(test_control, test_treated), MG);
       }
       else {
         // To do
@@ -126,18 +136,28 @@ List greedy_cpp(NumericMatrix test_treated_covs, IntegerVector test_control, Int
         proposed_bin[j] = closest_val_to_bin;
         // 3. Test this new bin 
         // + 1 because C++ --> R indexing
+        // bin_var[j] = Rcpp::as<double>(how_curvy(j + 1, A, B, proposed_bin[j], bart_fit));
         bin_var[j] = Rcpp::as<double>(expansion_variance(j + 1, A, B, proposed_bin[j], bart_fit));
       }
       // Best covariate to expand along
       int expand_along = which_min(bin_var); // what if all equal
       // Update bin 
-      if (proposed_bin[expand_along] < A[expand_along]) {// Expanded downwards
-        A[expand_along] = proposed_bin[expand_along];
+      // std::cout << "i: bin_var prev_var relerror " << i << " " << min(bin_var) << " " << prev_var << " " <<
+      //   abs(min(bin_var) - prev_var) / prev_var << std::endl;
+      // if (abs(min(bin_var) - prev_var) / prev_var < multiplier) {
+      if (min(bin_var) < multiplier * prev_var || n_matched_controls < 1) {
+        // std::cout << "min_ever_var: " << min_ever_var << " and minbinvar: " << min(bin_var) << std::endl;
+        // std::cout << i << "Got all up in here" << std::endl;
+        if (proposed_bin[expand_along] < A[expand_along]) {// Expanded downwards
+          A[expand_along] = proposed_bin[expand_along];
+        }
+        else {
+          B[expand_along] = proposed_bin[expand_along];
+        }
       }
       else {
-        B[expand_along] = proposed_bin[expand_along];
+        break;
       }
-      
       // Find units matched, given the unit's new bin
       LogicalVector in_MG(n_test, true);
       
@@ -150,6 +170,9 @@ List greedy_cpp(NumericMatrix test_treated_covs, IntegerVector test_control, Int
           }
         }
         if (in_MG[k]) {
+          if (find(test_control.begin(), test_control.end(), k) != test_control.end()) {
+            n_matched_controls += 1; 
+          }
           MG.push_back(k);
         }
       }
@@ -158,7 +181,8 @@ List greedy_cpp(NumericMatrix test_treated_covs, IntegerVector test_control, Int
       CATE[i] = get_greedy_CATE(MG, test_treatments, test_outcomes);
       // std::cout << "Unit " << i << "has min_var = " << min(bin_var) << std::endl;
     }
-    while (min(bin_var) < 2 * 5 * 2.5 * prev_var);
+    // while (abs(min(bin_var) - prev_var) / prev_var < multiplier);
+    while (min(bin_var) < multiplier * prev_var || n_matched_controls < 1);
     all_A.push_back(A);
     all_B.push_back(B);
   }
