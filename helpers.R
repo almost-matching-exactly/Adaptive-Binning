@@ -2,6 +2,39 @@ expit <- function(a, x) {
   exp(a * x) / (1 + exp(a * x))
 }
 
+how_curvy <- function(cov, current_lower, current_upper, new_val, black_box, n_grid_pts = 8) {
+  p <- length(current_lower)
+  
+  if (new_val > current_upper[cov]) {
+    grid_pts <- seq(current_upper[cov], new_val, length.out = n_grid_pts)
+  }
+  else {
+    grid_pts <- seq(current_lower[cov], new_val, length.out = n_grid_pts)
+  }
+  
+  bin_centers <- (current_lower + current_upper) / 2
+  
+  pred_data <- 
+    sapply(grid_pts, function(x) {
+      bin_centers[cov] <- x
+      bin_centers
+    }) %>%
+    t()
+  
+  
+  preds <- predict(black_box, cbind(pred_data, 1)) # Treatment = TRUE
+  
+  point_pairs <- combn(1:n_grid_pts, 2)
+  n_pairs <- ncol(point_pairs)
+  sq_norm_gradient <- vector('numeric', n_pairs)
+  for (i in 1:n_pairs) {
+    delta_f <- preds[point_pairs[2, i]] - preds[point_pairs[1, i]]
+    delta_x <- pred_data[point_pairs[2, i], ] - pred_data[point_pairs[1, i], ]
+    sq_norm_gradient[i] <- sum((delta_f / delta_x) ^ 2)
+  }
+  return(max(sq_norm_gradient))
+}
+
 expansion_variance <- function(cov, current_lower, current_upper, 
                                new_val, bart_fit, n_grid_pts = 8) {
   p <- length(current_lower)
@@ -20,11 +53,19 @@ expansion_variance <- function(cov, current_lower, current_upper,
       bin_centers[cov] <- x
       bin_centers
     }) %>%
-    t() %>% 
-    cbind(1) # Treatment = TRUE
+    t() 
   
-  return(var(predict(bart_fit, pred_data))) ## For XGBoost
-  # return(var(colMeans(predict(bart_fit, pred_data)))) ## For BART
+  pred_data_treat <- 
+    pred_data %>%
+    cbind(1)
+  
+  pred_data_control <- 
+    pred_data %>%
+    cbind(0)
+  
+  # return(var(predict(bart_fit, pred_data))) ## For XGBoost
+  return(var(colMeans(predict(bart_fit, pred_data_treat))) + 
+           var(colMeans(predict(bart_fit, pred_data_control)))) ## For BART
 }
 
 R_expansion_variance <- function(cov, current_bin, expanded_bin, df, bart_fit, n_grid_pts = 8) {

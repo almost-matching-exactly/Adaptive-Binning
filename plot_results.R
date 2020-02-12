@@ -23,7 +23,7 @@ size_vs_error_plot <- function(sim_out, estimator, sim_number = 1) {
 }
 
 
-bin_plot <- function(bins, test_df, cov1, cov2, ...) {
+bin_plot <- function(bins, test_df, cov1, cov2, fhat, background = FALSE, ...) {
   # Input covariates / dimensions for which you would like bins
   boundaries <- c(...)
   test_control <- 
@@ -45,8 +45,29 @@ bin_plot <- function(bins, test_df, cov1, cov2, ...) {
                    'point1', 'point2')) %>%
     mutate(id = 1:nrow(.),
            unmatched = is.na(lower1)) 
-  # browser()
   
+  min_dim1 <- min(bins$point1, na.rm = TRUE)
+  min_dim2 <- min(bins$point2, na.rm = TRUE)
+  max_dim1 <- max(bins$point1, na.rm = TRUE)
+  max_dim2 <- max(bins$point2, na.rm = TRUE)
+  
+  # browser()
+  if (background) {
+    predict_points <- 
+      expand.grid(seq(min_dim1, max_dim1, length.out = 50),
+                  seq(min_dim2, max_dim2, length.out = 50)) %>%
+      as.matrix() %>%
+      cbind(1) %>%
+      `colnames<-`(c('X1', 'X2', 'treated'))
+    # browser()
+      ###### FIX THIS FOR WHEN DIM > 2 and you need to integrate over other dimensions
+    preds <- colMeans(predict(fhat, predict_points))
+    
+    predict_points %<>%
+      as.data.frame() %>%
+      `colnames<-`(c('X1', 'X2', 'treated')) %>%
+      mutate(preds = preds)
+  }
   if (sum(is.na(bins$lower1)) == 0) {
     unmatched_units <- NULL
   }
@@ -54,8 +75,12 @@ bin_plot <- function(bins, test_df, cov1, cov2, ...) {
     unmatched_units <- filter(bins, is.na(lower1)) 
   }
   
-  p <-
-    ggplot(data = bins) +
+  
+  p <- ggplot(data = bins)
+  if (background) {
+    p <- p + geom_raster(data = predict_points, aes(x = X1, y = X2, fill = preds))
+  }
+  p <- p + 
     geom_rect_interactive(aes(xmin = lower1, xmax = upper1,
                               ymin = lower2, ymax = upper2,
                               data_id = id),
@@ -64,8 +89,9 @@ bin_plot <- function(bins, test_df, cov1, cov2, ...) {
     geom_point_interactive(data = filter(bins, !is.na(lower1)),
                            aes(x = point1, y = point2, data_id = id, color = 'Matched')) +
     geom_point(data = test_control, aes(x = X1, y = X2, color = 'Control'), size = 0.2) +
-    labs(x = 'x1', y = 'x2') +
-    theme_bw()
+    scale_fill_gradient(guide="colorbar") + 
+    theme_minimal() + 
+    labs(x = 'x1', y = 'x2')
   
   if (is.null(unmatched_units)) {
     p <- p + 
@@ -83,10 +109,16 @@ bin_plot <- function(bins, test_df, cov1, cov2, ...) {
   }
   
   if (length(boundaries) != 0) {
+    boundaries %<>% 
+      matrix(ncol = 4, byrow = TRUE) %>%
+      as.data.frame() %>%
+      `colnames<-`(c('Start1', 'End1', 'Start2', 'End2'))
+    # browser()
     p <- 
       p + 
-      geom_rect(xmin = boundaries[1], xmax = boundaries[2],
-                ymin = boundaries[3], ymax = boundaries[4],
+      geom_rect(data = boundaries, 
+                aes(xmin = Start1, xmax = End1,
+                ymin = Start2, ymax = End2),
                 fill = NA, color = '#E9CCD1')
   }
   

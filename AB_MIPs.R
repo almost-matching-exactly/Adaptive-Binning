@@ -9,7 +9,7 @@ generate_grid = function(xi, test_covs, d){
     means = (xi + xk)/2
     for(j in 1:p){
       grdj = seq(min(xi[j], xk[j]), max(xi[j], xk[j]), length.out = d)
-      xgrdj = matrix(rep(means, d), d, p, byrow=T)
+      xgrdj = matrix(rep(means, d), d, p, byrow = T)
       xgrdj[, j] = grdj
       grid = rbind(grid, xgrdj)
     }
