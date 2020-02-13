@@ -62,7 +62,7 @@ CATE_error_plot(res)
 ```
 
 2D: Open box in 1D
-```{r}
+```{r, eval=FALSE}
 y_dgp <- function(x, z, eps) {
   beta_tilde <- 5
   Y <- 
@@ -82,7 +82,7 @@ ggsave(paste('new_sim_open_box_1d.png'),
 ```
 
 2D: Box in 1D
-```{r}
+```{r, eval=FALSE}
 y_dgp <- function(x, z, eps) {
   beta_tilde <- 5
   Y <- 
@@ -129,7 +129,7 @@ CATE_error_plot(res)
 ```
 
 2D: Box in 2D
-```{r}
+```{r, eval=FALSE}
 y_dgp <- function(x, z, eps) {
   beta_tilde <- 5
   Y <- 
@@ -149,15 +149,8 @@ CATE_error_plot(res)
        # width = 10, height = 8, units = 'in', device = 'png', dpi = 300)
 ```
 
-```{r}
-for (i in 1:dim(binz)[1]) {
-  print(sum(apply(tdf, 1, function(x) all(x >= binz[i, , 1]) & all(x <= binz[i, , 2]))))
-}
-```
-
-
 2D: Union of 1D boxes 
-```{r}
+```{r, eval=FALSE}
 y_dgp <- function(x, z, eps) {
   beta_tilde <- 5
   Y <- 
@@ -178,7 +171,7 @@ ggsave(paste('new_sim_union_box_1d.png'),
 ```
 
 2D: Union of 2D boxes 
-```{r}
+```{r, eval=FALSE}
 y_dgp <- function(x, z, eps) {
   beta_tilde <- 5
   Y <- 
@@ -241,7 +234,7 @@ ggsave(paste('new_sim_linear_2d.png'),
 ```
 
 2D: Quadratic in 1D
-```{r}
+```{r, eval=FALSE}
 y_dgp <- function(x, z, eps) {
   beta_tilde <- 2
   Y <- 
@@ -280,6 +273,15 @@ CATE_error_plot(res)
 ggsave(paste('new_sim_quad_2d.png'), 
        width = 10, height = 8, units = 'in', device = 'png', dpi = 300)
 ```
+
+BART Function
+```{r}
+y_dgp <- function(X, Z, eps){
+  Y<- 10 * sin(pi * X[, 1]*X[, 2]) + 20 *(X[, 3] - 0.5)^2 + 10*X[, 4] + 5*X[, 5] + 5 * X[, 3] * Z + eps
+  return(Y)
+}
+```
+
 
 Load Data
 ```{r}

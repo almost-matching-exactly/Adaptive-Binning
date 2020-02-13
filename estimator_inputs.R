@@ -34,7 +34,7 @@ estimator_inputs <- function(df, n_train, n_units, black_box, cv) {
     k <- 2
     n.trees <- 200
     if (cv) {
-      message('Cross-validating BART; should take a minute')
+      message('Cross-validating BART; should take a minute\r')
       flush.console()
       n.trees <- c(2, 5, 10, 20, 50, 200)
       nu_q <- list(c(3, 0.9), c(3, 0.99), c(10, 0.75))
