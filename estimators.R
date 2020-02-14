@@ -7,6 +7,7 @@ require(cem)
 require(dbarts)
 require(magrittr)
 require(xgboost)
+require(Matching)
 
 est_true <- function(df, Y0true){
   return(est_prog(df, Y0true))
@@ -22,6 +23,23 @@ est_fullmatch <- function(df, n, n_train, f) {
     HTE[i] <- mean(df$Y[treated]) - mean(df$Y[control])
   }
   HTE <- HTE[intersect((n_train + 1):n, which(df$treated))]
+  return(HTE)
+}
+
+est_gen_match <- function(df, n_train) {
+  p <- ncol(df) - 2
+  n <- nrow(df)
+  capture.output(gen_out <- 
+                   suppressWarnings(GenMatch(df$treated, 
+                                             dplyr::select(df, -c(treated, Y)))), 
+                 file = 'NUL')
+  matched <- Match(Y = NULL, 
+                   Tr = df$treated, 
+                   X = df[, 1:p], 
+                   Weight.matrix = gen_out)
+  test_treated <- intersect((n_train + 1):n, which(df$treated))
+  to_match <- which(matched$index.treated %in% test_treated)
+  HTE <- df$Y[test_treated] - df$Y[matched$index.control[to_match]]
   return(HTE)
 }
 
@@ -363,6 +381,9 @@ get_CATEs <- function(inputs, estimators, hyperparameters) {
     }
     else if (estimators[i] == 'Nearest Neighbor') {
       CATEs[, i] <- est_nn(df, n_train, f, ratio = 1)
+    }
+    else if (estimators[i] == 'GenMatch') {
+      CATEs[, i] <- est_gen_match(df, n_train)
     }
     else if (estimators[i] == 'Greedy') {
       greedy_out <- greedy_cpp(as.matrix(test_covs[test_treated, ]), 

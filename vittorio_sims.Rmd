@@ -304,9 +304,18 @@ for (file in files) {
 sims_per_type <- 10
 n_estimators <- 7
 
-sim_types <- c('Closed Box 1D', 'Closed Box 2D', 'Constant',
-              'Linear 1D', 'Linear 2D', 'Open Box 1D', 'Open Box 2D',
-              'Quadratic 1D', 'Quadratic 2D', 'Union of Boxes 1D', 'Union of Boxes 2D')
+# sim_types <- c('Closed Box 1D', 'Closed Box 2D', 'Constant',
+#               'Linear 1D', 'Linear 2D', 'Open Box 1D', 'Open Box 2D',
+#               'Quadratic 1D', 'Quadratic 2D', 'Union of Boxes 1D', 'Union of Boxes 2D')
+
+sim_types <- c('Constant', 'Constant w/Confounding', 'Box',
+               'Linear', 'Quadratic', 'BART Function')
+
+CATEs_per_sim_type <- c(nrow(all_simple_CATEs), nrow(all_const_conf_CATEs), nrow(all_box_CATEs),
+                        nrow(all_linear_CATEs), nrow(all_quad_CATEs), nrow(all_BART_CATEs))
+
+sim_results <- do.call(rbind, list(all_simple_CATEs, all_const_conf_CATEs, all_box_CATEs,
+                        all_linear_CATEs, all_quad_CATEs, all_BART_CATEs))
 
 sim_results %<>% 
   mutate(sim_type = rep(sim_types, CATEs_per_sim_type),
