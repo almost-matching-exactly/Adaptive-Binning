@@ -51,6 +51,7 @@ List greedy_cpp(NumericMatrix test_treated_covs, IntegerVector test_control, Int
   
   double prev_var; 
   int n_matched_controls;
+  IntegerVector all_units = seq(0, n_test - 1);
   // For each test-treated unit
   for (int i = 0; i < n_test_treated; i++) {
     std::cout << "Matching unit " << i + 1 << " of " << n_test_treated << "\r" << std::flush;
@@ -70,17 +71,13 @@ List greedy_cpp(NumericMatrix test_treated_covs, IntegerVector test_control, Int
       // if (min(bin_var) < min_ever_var) {
       //   min_ever_var = min(bin_var) + 0.02;
       // }
-      // std::cout << "Unit " << i << "has prev_var = " << prev_var << std::endl;
-      // std::cout << "The bins are: \n";
-      // for (int l = 0; l < A.size(); l++) {
-      //   std::cout << A[l] << " " << B[l] << "\n";
-      // }
+
       NumericVector potential_matches;
       // Find units closest along each axis
       if (variation != 2) { 
         // Don't consider expanding to any units already in the MG
         // Don't take union every time 
-        potential_matches = setdiff(union_(test_control, test_treated), MG);
+        potential_matches = setdiff(all_units, MG);
       }
       else {
         // To do
@@ -170,7 +167,7 @@ List greedy_cpp(NumericMatrix test_treated_covs, IntegerVector test_control, Int
           }
         }
         if (in_MG[k]) {
-          if (find(test_control.begin(), test_control.end(), k) != test_control.end()) {
+          if (std::binary_search(test_control.begin(), test_control.end(), k)) {
             n_matched_controls += 1; 
           }
           MG.push_back(k);

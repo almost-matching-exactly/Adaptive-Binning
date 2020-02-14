@@ -133,6 +133,11 @@ bin_plot <- function(bins, test_df, cov1, cov2, fhat, background = FALSE, ...) {
 }
 
 CATE_error_plot <- function(res) {
+  ATT <- mean(res$actual)
+  
+  res %<>% 
+    mutate(error = abs(predicted - actual))
+    
   perc_missing <- 
     res %>%
     group_by(estimator) %>%
@@ -144,7 +149,7 @@ CATE_error_plot <- function(res) {
   group_means <- 
     res %>%
     group_by(estimator) %>%
-    summarize(mean = mean(abs(predicted - actual), na.rm = TRUE))
+    summarize(mean = mean(error, na.rm = TRUE))
   
   baseline_estimators <- intersect(estimators, 
                                    c('Greedy', 'MIP', 'MIP-Explain', 'MIP-Predict', 'MIQP-Variance'))
@@ -155,10 +160,11 @@ CATE_error_plot <- function(res) {
     pull(mean) %>%
     min()
   
-  max_error_plotted <- quantile(abs(res$predicted - res$actual), probs = .975, na.rm = T)
+  max_error_plotted <- 
+    quantile(res$error, probs = .975, na.rm = T) / ATT
   
   res %<>%
-    filter(is.na(predicted) | abs(predicted - actual) <= max_error_plotted)
+    filter(is.na(predicted) | error / ATT <= max_error_plotted)
     
   lower_than <- group_means$mean <= baseline_mean
   lower_than[is.na(lower_than)] = FALSE
@@ -166,20 +172,27 @@ CATE_error_plot <- function(res) {
   colors = brewer.pal(3, "Set1")[if_else(lower_than, 2, 1)]
   colors[which(estimators %in% baseline_estimators)] = brewer.pal(3, "Set1")[3]
   
+  res$estimator %<>% 
+    factor(levels = c('BART', 'BART of 1', 'BART of 2', 'Best CF', 
+                      'MIP', 'MIP_both', 'Greedy', 
+                      'CEM', 'Full Matching', 'Nearest Neighbor', 'Prognostic', 'Mahalanobis', 'GenMatch'))
+  
   p <- 
     ggplot(data = res) + 
-    geom_violin(aes(y = abs(predicted - actual), x = estimator, fill = estimator),
+    geom_violin(aes(y = error / ATT, x = estimator, fill = estimator),
                 color = "black", draw_quantiles = c(0.5), size = 0.2) + 
+    geom_segment(x = 4.5, xend = 4.5, y = 0, yend = max_error_plotted) + 
+    geom_segment(x = 7.5, xend = 7.5, y = 0, yend = max_error_plotted) + 
     geom_text(data = perc_missing, 
-              aes(x = estimator, y = max_error_plotted + 0.125, label = percent_missing)) +
-    annotate('text', x = (n_estimators + 1) / 2, y = max_error_plotted + 0.25, label = 'Percent Missing') +
+              aes(x = estimator, y = max_error_plotted + 0.25, label = percent_missing)) +
+    annotate('text', x = 5.5, y = max_error_plotted + 0.5, label = 'Percent Missing') +
     scale_fill_manual(values = colors) + 
-    ylim(c(0, max_error_plotted + 0.3)) +
+    ylim(c(0, max_error_plotted + 0.7)) +
     xlab("") + 
-    ylab("Mean absolute estimation error") + 
-    ggtitle("Estimation error") + 
+    ylab("Absolute estimation error\nRelative to ATT") + 
     theme_minimal() + 
-    theme(legend.position = "none")
+    theme(legend.position = "none",
+          axis.text.x = element_text(angle = 45, hjust = 1))
   print(p)
 }
 

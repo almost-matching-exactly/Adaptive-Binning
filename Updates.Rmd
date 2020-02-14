@@ -2,6 +2,7 @@
 title: "Updates"
 author: "marco and vittorio"
 date: "2/12/2020"
+geometry: margin=1cm
 output: pdf_document
 ---
 
@@ -27,12 +28,58 @@ Recall also that the stopping rule was "if the variance of predicted outcomes in
 ## Changes to the MIP 
 
 # Results 
+To summarize the estimators:
+
+* BART: Use BART to estimate $f(x, 1), f(x, 0)$ and then for each treated unit $i$ estimate the CATE as $\hat{f}(x_i, 1) - \hat{f}(x_i, 0)$
+* BART of 1: Estimate $f(x, 1), f(x, 0)$ and then for each treated unit $i$ estimate the CATE as $Y_k - Y_l$ where $Y_k$ is the _treated_ unit with outcome closest to $\hat{f}(x_i, 1)$ and $Y_l$ is the _control_ unit with outcome closest to $\hat{f}(x_i, 0)$.
+* BART of 2: Estimate $f(x, 1), f(x, 0)$ and then for each treated unit $i$ estimate the CATE as $Y_i - Y_k$ where $Y_k$ is the _control_ unit with outcome closest to $\hat{f}(x_i, 0)$.
+* Best CF: Prognostic score matching given the _true_ counterfactuals.
+* CEM: Coarsened Exact Matching; default bin rule. 
+* Full Matching: Full Matching
+* Greedy: The greedy algorithm with predictions made via BART. Estimates the CATE of a unit $i$ as the difference between average treated and average control outcomes in $\mathtt{MMG}_i$. 
+* Mahalanobis: Mahalanobis distance matching; all directions evenly weighted. 
+* MIP: The MIP, with predictions made via BART. Estimates the CATE of a unit $i$ as the difference between $Y_i$ and the average control outcome in $\mathtt{MMG}_i$. 
+* MIP_both: Estimates the CATE of a unit $i$ as the difference between average treated and average control outcomes in $\mathtt{MMG}_i$. 
+* Nearest Neighbor: Nearest Neighbor propensity score matching _without_ replacement, with propensity score predicted via logistic regression. 
+* Prognostic: Nearest neighbor prognostic score matching _with_ replacement, with prognostic score estimated BART as with Greedy and the MIP. 
+
+To summarize the simulation setup. There are ten simulations per violin plot. We have 2 covariates (except for the BART function plot, which has 5), 300 training units, 100 test units. The label in the upper left of each plot represents the form of the treatment effect function. Everything *does* have confounding except for the 'Constant' and 'Box' plots. I realize that's misleading; sorry about that. 
+
+The treatment effect functions are:
+
+* Constant: Constant treatment effect function with no confounding.
+* Constant w/Confounding: A constant treatment effect, where some covariates, which influence the outcome, are predictive of treatment assignment.
+* Box: A constant treatment effect inside a box defined by values of covariates $X_1, X_2$. 
+* Linear: A linear treatment effect with linear confounding. 
+* Quadratic: A quadratic treatment effect with quadratic confounding.
+* BART Function: A linear (in only one of the covariates) treatment effect with a very complicated function that even ML methods struggle with as confounding. 
+
+![](all_new_sims.png){width=750px}
+
+\begin{table}[ht]
+\centering
+\begin{tabular}{lllllllllllll}
+  \hline
+sim\_type & BART & BART of 1 & BART of 2 & Best CF & CEM & Full Matching & Greedy & Mahalanobis & MIP & MIP\_both & Nearest Neighbor & Prognostic \\ 
+  \hline
+BART Function & 0.48 (0.35) & 0.53 (0.45) & 1.5 (1.36) & 0.36 (0.41) & 0.44 (0.55) & 5.08 (3.49) & 2.79 (2.25) & 2.71 (2.28) & 1.42 (1.13) & 1.44 (1.07) & 5.57 (4.16) & 1.05 (0.88) \\ 
+  Box & 0.07 (0.11) & 0.08 (0.16) & 0.34 (0.31) & 0.27 (0.2) & 0.32 (0.42) & 0.85 (1.03) & 0.16 (0.24) & 0.5 (0.66) & 0.3 (0.29) & 0.14 (0.16) & 0.89 (1.11) & 0.28 (0.24) \\ 
+  Constant & 0.03 (0.02) & 0.03 (0.02) & 0.35 (0.25) & 0.26 (0.18) & 0.23 (0.17) & 0.34 (0.25) & 0.05 (0.03) & 0.36 (0.27) & 0.27 (0.2) & 0.1 (0.1) & 0.37 (0.27) & 0.26 (0.19) \\ 
+  Constant w/Confounding & 0.04 (0.05) & 0.06 (0.05) & 0.4 (0.29) & 0.25 (0.19) & 0.26 (0.19) & 0.57 (0.46) & 0.12 (0.13) & 0.39 (0.31) & 0.28 (0.21) & 0.1 (0.08) & 0.66 (0.47) & 0.27 (0.2) \\ 
+  Linear & 0.13 (0.1) & 0.15 (0.11) & 0.36 (0.25) & 0.24 (0.19) & 0.23 (0.18) & 0.57 (0.49) & 0.22 (0.19) & 0.38 (0.29) & 0.27 (0.2) & 0.18 (0.15) & 0.59 (0.44) & 0.25 (0.18) \\ 
+  Quadratic & 0.16 (0.13) & 0.17 (0.14) & 0.39 (0.3) & 0.26 (0.19) & 0.25 (0.19) & 0.48 (0.39) & 0.3 (0.23) & 0.38 (0.28) & 0.28 (0.21) & 0.23 (0.18) & 0.5 (0.38) & 0.28 (0.21) \\ 
+   \hline
+\end{tabular}
+\end{table}
 
 # To Do
 
 ## Overall
 
+* More simulations? 
+* Simulations with discrete covariates? This might be a stretch to code in the time frame...
+
 ## Greedy Algorithm 
-Parallelize the C++ code 
+Code has been parallelized, just need to run some scalability comparisons with other methods. 
 
 ## MIP
