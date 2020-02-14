@@ -135,6 +135,11 @@ bin_plot <- function(bins, test_df, cov1, cov2, fhat, background = FALSE, ...) {
 CATE_error_plot <- function(res) {
   ATT <- mean(res$actual)
   
+  res$estimator %<>% 
+    factor(levels = c('BART', 'BART of 1', 'BART of 2', 'Best CF', 
+                      'MIP', 'MIP_both', 'Greedy', 
+                      'CEM', 'Full Matching', 'Nearest Neighbor', 'Prognostic', 'Mahalanobis', 'GenMatch'))
+  
   res %<>% 
     mutate(error = abs(predicted - actual))
     
@@ -152,7 +157,7 @@ CATE_error_plot <- function(res) {
     summarize(mean = mean(error, na.rm = TRUE))
   
   baseline_estimators <- intersect(estimators, 
-                                   c('Greedy', 'MIP', 'MIP-Explain', 'MIP-Predict', 'MIQP-Variance'))
+                                   c('Greedy', 'MIP', 'MIP_both', 'MIP-Explain', 'MIP-Predict', 'MIQP-Variance'))
   
   baseline_mean <- 
     group_means %>%
@@ -170,12 +175,8 @@ CATE_error_plot <- function(res) {
   lower_than[is.na(lower_than)] = FALSE
   
   colors = brewer.pal(3, "Set1")[if_else(lower_than, 2, 1)]
-  colors[which(estimators %in% baseline_estimators)] = brewer.pal(3, "Set1")[3]
-  
-  res$estimator %<>% 
-    factor(levels = c('BART', 'BART of 1', 'BART of 2', 'Best CF', 
-                      'MIP', 'MIP_both', 'Greedy', 
-                      'CEM', 'Full Matching', 'Nearest Neighbor', 'Prognostic', 'Mahalanobis', 'GenMatch'))
+  colors[which(estimators %in% c('Greedy', 'MIP', 'MIP_both', 'MIP-Explain', 
+                                 'MIP-Predict', 'MIQP-Variance'))] = brewer.pal(3, "Set1")[3]
   
   p <- 
     ggplot(data = res) + 
