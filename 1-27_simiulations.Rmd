@@ -7,7 +7,7 @@ editor_options:
 
 ```{r setup, include=FALSE, warnings=FALSE}
 knitr::opts_chunk$set(echo = FALSE, warning=FALSE, message = FALSE, error=FALSE)
-setwd("/home/marco/Dropbox/Duke/projects/FLAME-binning/Adaptive-Binning/")
+setwd("/Users/marco/Dropbox/Duke/projects/FLAME-binning/Adaptive-Binning/")
 source("AB_MIPs.R")
 library(ggplot2)
 library(reshape2)
@@ -936,19 +936,23 @@ x_dgp = function(n, p){
 
 all_y_dgp <- list(y_dgp_simple,
                   y_dgp_constant_irr, 
-                  y_dgp_box)
+                  y_dgp_box,
+                  y_dgp_linear_irr,
+                  y_dgp_quadratic)
 
 sim_types <- c('Constant: no confound',
                'Constant', 
-               'Box')
+               'Box', 
+               'Linear: one irrelevant',
+               'Quadratic')
 
 n_dgp <- length(all_y_dgp)
 
 p=2
 # y_dgp = y_dgp_bart
 nsims = 5
-n = 400
-n_train = 200
+n = 1000
+n_train = 900
 alpha=0
 lambda0=0
 lambda1=0
@@ -962,9 +966,9 @@ for (i in 1:n_dgp) {
   y_dgp <- all_y_dgp[[i]]
   all_CATEs = NULL
   message(paste('Starting', sim_types[i], 'DGP', sep = ' '))
-  if (i == n_dgp) {
-    p <- 5
-  }
+  # if (i == n_dgp) {
+  #   p <- 5
+  # }
   for (sim in 1:nsims){
     c(df, HTE) %<-% simulate_data(n, p, y_dgp = y_dgp, X_dgp=x_dgp)
     inputs <- estimator_inputs(df, n_train, n, 'BART', cv = TRUE)
@@ -976,8 +980,10 @@ for (i in 1:n_dgp) {
     HTE_test_treated = HTE[(n_train+1):n][test_df$treated]
     
     # Matching methods
-    m_estimators <- c('Full Matching', 'Prognostic', 'CEM', 'Mahalanobis', 'Nearest Neighbor', 'Greedy')
-    est_out <- suppressWarnings(get_CATEs(inputs, m_estimators, hyperparameters = list(0, 0, 0, 0, 0, 0, 0, 0, 0, 0)))
+    m_estimators <- c('Full Matching', 'Prognostic', 'CEM', 
+                      'Mahalanobis', 'Nearest Neighbor', 'Greedy')
+    est_out <- suppressWarnings(get_CATEs(inputs, m_estimators, 
+                                          hyperparameters = list(0, 0, 0, 0, 0, 0, 0, 0, 0, 0)))
     CATEs = est_out$CATEs
     
     ## best match on true expected CF
