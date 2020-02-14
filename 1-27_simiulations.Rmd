@@ -7,7 +7,7 @@ editor_options:
 
 ```{r setup, include=FALSE, warnings=FALSE}
 knitr::opts_chunk$set(echo = FALSE, warning=FALSE, message = FALSE, error=FALSE)
-setwd("/Users/marco/Dropbox/Duke/projects/FLAME-binning/Adaptive-Binning/")
+setwd("/home/marco/Dropbox/Duke/projects/FLAME-binning/Adaptive-Binning/")
 source("AB_MIPs.R")
 library(ggplot2)
 library(reshape2)
@@ -936,6 +936,7 @@ x_dgp = function(n, p){
 all_y_dgp <- list(y_dgp_linear_irr,
                   y_dgp_quadratic,
                   y_dgp_bart)
+all_p_vals <- list(2, 2, 5) # Need as many ps as dgps
 
 sim_types <- c('Linear', 
                'Quadratic',
@@ -943,11 +944,7 @@ sim_types <- c('Linear',
 
 
 n_dgp <- length(all_y_dgp)
-
-p=2
-# y_dgp = y_dgp_bart
-
-nsims = 10
+nsims = 5
 n = 400
 n_train = 300
 alpha=0
@@ -959,10 +956,12 @@ beta=3
 m=1
 M=1e5
 all_dgp_CATEs <- vector('list', length = n_dgp)
-for (i in 1:n_dgp) {
-  y_dgp <- all_y_dgp[[i]]
+for (dgp in 1:n_dgp) {
+  y_dgp <- all_y_dgp[[dgp]]
+  p = all_p_vals[[dgp]]
+
   all_CATEs = NULL
-  message(paste('Starting', sim_types[i], 'DGP', sep = ' '))
+  message(paste('Starting', sim_types[dgp], 'DGP', sep = ' '))
   for (sim in 1:nsims) {
     c(df, HTE) %<-% simulate_data(n, p, y_dgp = y_dgp, X_dgp=x_dgp)
     inputs <- estimator_inputs(df, n_train, n, 'BART', cv = FALSE)
@@ -1054,9 +1053,9 @@ for (i in 1:n_dgp) {
     all_CATEs <- rbind(all_CATEs, fcates)
     message(sprintf('%d of %d simulations completed', sim, nsims))
   }
-  all_dgp_CATEs[[i]] <- all_CATEs
+  all_dgp_CATEs[[dgp]] <- all_CATEs
 }
-saveRDS(all_dgp_CATEs, 'sims_2-12_part2.rds')
+#saveRDS(all_dgp_CATEs, 'sims_2-12_part2.rds')
 # CATE_error_plot(all_CATEs)
 # print(summarize_CATEs(all_CATEs))
 #bin_plot(mip_bins, test_df, 1, 2)
