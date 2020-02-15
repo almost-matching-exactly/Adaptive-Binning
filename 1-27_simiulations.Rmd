@@ -933,20 +933,15 @@ x_dgp = function(n, p){
 ########################################################
 # Simulations
 ########################################################
-all_y_dgp <- list(y_dgp_linear_irr,
-                  y_dgp_quadratic,
-                  y_dgp_bart)
-all_p_vals <- list(2, 2, 5) # Need as many ps as dgps
+all_y_dgp <- list(y_dgp_box)
+all_p_vals <- list(2) # Need as many ps as dgps
 
-sim_types <- c('Linear', 
-               'Quadratic',
-               'Bart Function')
-
+sim_types <- c('Box') 
 
 n_dgp <- length(all_y_dgp)
 nsims = 5
-n = 400
-n_train = 300
+n = 600
+n_train = 200
 alpha=0
 lambda0=0
 lambda1=0
@@ -974,8 +969,8 @@ for (dgp in 1:n_dgp) {
     
     # Matching methods
 
-    m_estimators <- c('Full Matching', 'Prognostic', 'CEM', 'GenMatch',
-                      'Mahalanobis', 'Nearest Neighbor', 'Greedy')
+    m_estimators <- c('Full Matching', 'Prognostic', 'CEM',
+                      'Mahalanobis', 'Nearest Neighbor')
     est_out <- suppressWarnings(get_CATEs(inputs, m_estimators, hyperparameters = list(0, 0, 0, 0, 0, 0, 0, 0, 0, 0)))
 
     CATEs = est_out$CATEs
@@ -1021,13 +1016,18 @@ for (dgp in 1:n_dgp) {
       i = test_treated[l]
       message(paste("Matching unit", l, "of", n_test_treated), "\r", appendLF = FALSE); flush.console()
       
+      # cands = c(order(abs(fhat1[i] - fhat1[test_df$treated==1]) * gamma1/sd(fhat1) +
+      #                abs(fhat0[i] - fhat0)[test_df$treated==1] * gamma1/sd(fhat0))[2:101],
+      #           order(abs(fhat1[i] - fhat1[test_df$treated==0]) * gamma1/sd(fhat1) +
+      #                abs(fhat0[i] - fhat0)[test_df$treated==0] * gamma1/sd(fhat0))[1:100])
+      cands <- (1:nrow(test_covs))[-i]
       mip_pars =  setup_miqp_fhat(xi = as.numeric(test_covs[i, ]),
-                                  x_test = as.matrix(test_covs[-i, ]),
-                                  z_test = test_df$treated[-i],
+                                  x_test = as.matrix(test_covs[cands, ]),
+                                  z_test = test_df$treated[cands],
                                   fhati1=fhat1[i],
                                   fhati0=fhat0[i],
-                                  fhat1=fhat1[-i],
-                                  fhat0=fhat0[-i], 
+                                  fhat1=fhat1[cands],
+                                  fhat0=fhat0[cands], 
                                   alpha=alpha, lambda0=lambda0, lambda1=lambda1,
                                   gamma0=gamma0/sd(fhat0), gamma1=gamma1/sd(fhat1), 
                                   beta=beta, m=m, M=M)
@@ -1047,9 +1047,7 @@ for (dgp in 1:n_dgp) {
     # message(paste("Mean MIP error", mean(abs(CATEs[, 8] - HTE_test_treated), na.rm=T)))
     
     fcates = format_CATEs(CATEs, true_CATE = HTE_test_treated,
-                        estimators = c('Full Matching', 'Prognostic', 'CEM', 'GenMatch',
-                                       'Mahalanobis', 'Nearest Neighbor', 'Greedy',
-                                       'Best CF', 'BART', 'BART of 1', 'BART of 2',  'MIP', 'MIP_both'))
+                        estimators = c(m_estimators, c('Best CF', 'BART', 'BART of 1', 'BART of 2',  'MIP', 'MIP_both')))
     all_CATEs <- rbind(all_CATEs, fcates)
     message(sprintf('%d of %d simulations completed', sim, nsims))
   }
