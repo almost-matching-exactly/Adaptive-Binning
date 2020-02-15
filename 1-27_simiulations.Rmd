@@ -930,6 +930,8 @@ y_dgp_bart = function(X, Z, eps){
 x_dgp = function(n, p){
   return(matrix(runif(n*p, 0, 1), n, p))
 }
+
+
 ########################################################
 # Simulations
 ########################################################
@@ -1058,6 +1060,86 @@ for (dgp in 1:n_dgp) {
 # print(summarize_CATEs(all_CATEs))
 #bin_plot(mip_bins, test_df, 1, 2)
 ```
+
+## FLAME Simulations
+```{r}
+x_dgp <- function(Z, p_rel, p_irrel) {
+  n <- length(Z)
+  x_rel <- 
+    runif(n * p_rel, min = 0, max = 1) %>%
+    matrix(nrow = n)
+  
+  x <- x_rel
+  for (i in 1:p_irrel) {
+    x %<>%
+      cbind(rbeta(n, shape1 = 1.5 + 5.5 * Z, shape2 = 6 - 4 * Z))
+  }
+  return(x)
+}
+
+y_dgp_FLAME <- function(X, Z, eps, U = 1, max_nonlinear = 5) {
+  n <- nrow(X)
+  
+  s <- sample(c(-1, 1), size = 10, replace = TRUE)
+  alpha <- rnorm(10, 10 *s, 1)
+  baseline <- X %*% alpha
+  
+  beta <- rnorm(10, 1.5, 0.15)
+  linear_treated <- X %*% beta * Z
+  
+  interactions <- combn(1:max_nonlinear, 2)
+  nonlinear_treated <- rep(0, n)
+  for (i in 1:ncol(interactions)) {
+    nonlinear_treated %<>% 
+      add(X[, interactions[1, i]] * X[, interactions[2, i]])
+  }
+  nonlinear_treated <- nonlinear_treated * Z * U
+  
+  Y <- baseline + linear_treated + nonlinear_treated + eps
+  
+  return(Y)
+}
+
+n <- 200
+n_train <- 100
+p_rel <- 10
+p_irrel <- 20
+nsims <- 10
+
+all_CATEs <- NULL
+for (sim in 1:nsims) {
+  Z <- sample(c(0, 1), size = n, replace = TRUE)
+  X <- x_dgp(Z, p_rel, p_irrel)
+  eps <- rnorm(n, 0, sqrt(0.1))
+  Y1 <- y_dgp(X, rep(1, n), eps)
+  Y0 <- y_dgp(X, rep(0, n), eps)
+  HTE <- Y1 - Y0
+  Y <- Y1 * Z + Y0 * (1 - Z)
+  df <- cbind(data.frame(X), data.frame(Y = Y, treated = as.logical(Z)))
+  
+  inputs <- estimator_inputs(df, n_train, n, 'BART', cv = FALSE)
+    c(df, f, n, n_train, p,
+        train_df, train_covs, train_control, train_treated,
+        test_df, test_covs, test_control, test_treated, 
+        n_test_control, n_test_treated, 
+        bart_fit, counterfactuals) %<-% inputs
+    HTE_test_treated = HTE[(n_train+1):n][test_df$treated]
+    
+    # Matching methods
+    m_estimators <- c('Full Matching', 'Prognostic', 'CEM', 'GenMatch',
+                      'Mahalanobis', 'Nearest Neighbor')
+    est_out <- suppressWarnings(get_CATEs(inputs, m_estimators, hyperparameters = as.list(rep(0, 10))))
+    CATEs = est_out$CATEs
+    
+    fcates = format_CATEs(CATEs, true_CATE = HTE_test_treated,
+                        estimators = c('Full Matching', 'Prognostic', 'CEM', 'GenMatch',
+                                       'Mahalanobis', 'Nearest Neighbor'))
+    all_CATEs <- rbind(all_CATEs, fcates)
+    message(sprintf('%d of %d simulations completed', sim, nsims))
+}
+
+```
+
 
 ```{r}
 saveRDS(all_BART_CATEs, 'sim_BART.rds')
