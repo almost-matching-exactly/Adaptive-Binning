@@ -7,7 +7,7 @@ editor_options:
 
 ```{r setup, include=FALSE, warnings=FALSE}
 knitr::opts_chunk$set(echo = FALSE, warning=FALSE, message = FALSE, error=FALSE)
-setwd("/home/marco/Dropbox/Duke/projects/FLAME-binning/Adaptive-Binning/")
+setwd(path.expand("~/Dropbox/Duke/projects/FLAME-binning/Adaptive-Binning/"))
 source("AB_MIPs.R")
 library(ggplot2)
 library(reshape2)
@@ -80,7 +80,6 @@ ggplot(simdata) +
   xlab("x") + ylab("y") + theme_bw() + 
   theme(legend.position = c(0.8,0.2), legend.background = element_rect(color="black", size=0.5),
         legend.title = element_blank())
-
 ```
 
 ## 2D Example MIQP-Variance
