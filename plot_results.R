@@ -216,8 +216,8 @@ static_2d_bin_plot <- function(bins, test_df, cov1, cov2){
     geom_rect(data=bindata, aes(xmin=a1, ymin=a2, xmax=b1, ymax=b2), fill="grey", 
               color="black", size=0.5, alpha=0) + 
     geom_point(aes(x=x1, y=x2, color=y), size=2) +
-    ylim(c(min(simdata$x2[simdata$y==1]), max(simdata$x2[simdata$y==1]))) + 
-    xlim(c(min(simdata$x1[simdata$y==1]), max(simdata$x1[simdata$y==1]))) + 
+    ylim(c(min(bindata$a2), max(bindata$b2))) + 
+    xlim(c(min(bindata$a1), max(bindata$b1))) + 
     scale_color_manual(values=c('black', 'red')) + 
     xlab("x1") + ylab("x2") +  labs(color="Treated") +  theme_bw() + 
     theme(legend.position = c(0.95,0.85), 

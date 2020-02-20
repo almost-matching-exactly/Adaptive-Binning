@@ -934,21 +934,21 @@ x_dgp = function(n, p){
 ########################################################
 # Simulations
 ########################################################
-all_y_dgp <- list(y_dgp_box)
-all_p_vals <- list(2) # Need as many ps as dgps
+all_y_dgp <- list(y_dgp_bart)
+all_p_vals <- list(5) # Need as many ps as dgps
 
-sim_types <- c('Box') 
+sim_types <- c('Bart') 
 
 n_dgp <- length(all_y_dgp)
 nsims = 5
 n = 600
-n_train = 200
+n_train = 400
 alpha=0
 lambda0=0
 lambda1=0
-gamma0=2
-gamma1=2
-beta=3
+gamma0=4
+gamma1=4
+beta=2
 m=1
 M=1e5
 all_dgp_CATEs <- vector('list', length = n_dgp)
@@ -970,7 +970,7 @@ for (dgp in 1:n_dgp) {
     
     # Matching methods
 
-    m_estimators <- c('Full Matching', 'Prognostic', 'CEM',
+    m_estimators <- c('Full Matching', 'Prognostic', 'CEM', 'Greedy',
                       'Mahalanobis', 'Nearest Neighbor')
     est_out <- suppressWarnings(get_CATEs(inputs, m_estimators, hyperparameters = list(0, 0, 0, 0, 0, 0, 0, 0, 0, 0)))
 
@@ -1017,11 +1017,13 @@ for (dgp in 1:n_dgp) {
       i = test_treated[l]
       message(paste("Matching unit", l, "of", n_test_treated), "\r", appendLF = FALSE); flush.console()
       
-      # cands = c(order(abs(fhat1[i] - fhat1[test_df$treated==1]) * gamma1/sd(fhat1) +
-      #                abs(fhat0[i] - fhat0)[test_df$treated==1] * gamma1/sd(fhat0))[2:101],
-      #           order(abs(fhat1[i] - fhat1[test_df$treated==0]) * gamma1/sd(fhat1) +
-      #                abs(fhat0[i] - fhat0)[test_df$treated==0] * gamma1/sd(fhat0))[1:100])
-      cands <- (1:nrow(test_covs))[-i]
+      if(n_test_treated + n_test_control > 300){
+        ord = order(abs(fhat1[i] - fhat1) * gamma1/sd(fhat1) + abs(fhat0[i] - fhat0) * gamma0/sd(fhat0))
+        cands = c(ord[test_df$treated[ord]==1][2:100], ord[test_df$treated[ord]==0][1:100])
+      }else{
+        cands = (1:(n - n_train))[-i]
+      }
+      
       mip_pars =  setup_miqp_fhat(xi = as.numeric(test_covs[i, ]),
                                   x_test = as.matrix(test_covs[cands, ]),
                                   z_test = test_df$treated[cands],

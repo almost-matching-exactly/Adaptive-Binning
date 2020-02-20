@@ -298,7 +298,7 @@ setup_miqp_variance = function(xi, y_train, x_train, x_test, z_train,
     a8[k, (u_start + 1 + p*(k-1)):(u_start + p*k)] = 1 
     b8[k] = 2 * p - 1
   }
-  rownames(a8) = rep("C8", nrow(a8))
+  rownames(a8) = rep("C8", nrow(a8))00
   names(b8) = rep("C8", length(b8))
   s8 = rep("L", n_train)
   
