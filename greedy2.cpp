@@ -33,7 +33,7 @@ double get_greedy_CATE(IntegerVector MG, LogicalVector test_treatments,
 // [[Rcpp::export]]
 List greedy_cpp(NumericMatrix test_treated_covs, IntegerVector test_control, IntegerVector test_treated,
                 NumericMatrix test_covs, LogicalVector test_treatments, NumericVector test_outcomes,
-                int variation, int n_req_matches, double multiplier, SEXP bart_fit) {
+                int variation, int n_req_matches, double multiplier, SEXP bart_fit0, SEXP bart_fit1) {
   
   auto start = std::chrono::steady_clock::now();
   
@@ -71,7 +71,7 @@ List greedy_cpp(NumericMatrix test_treated_covs, IntegerVector test_control, Int
       // if (min(bin_var) < min_ever_var) {
       //   min_ever_var = min(bin_var) + 0.02;
       // }
-
+      
       NumericVector potential_matches;
       // Find units closest along each axis
       if (variation != 2) { 
@@ -134,7 +134,7 @@ List greedy_cpp(NumericMatrix test_treated_covs, IntegerVector test_control, Int
         // 3. Test this new bin 
         // + 1 because C++ --> R indexing
         // bin_var[j] = Rcpp::as<double>(how_curvy(j + 1, A, B, proposed_bin[j], bart_fit));
-        bin_var[j] = Rcpp::as<double>(expansion_variance(j + 1, A, B, proposed_bin[j], bart_fit));
+        bin_var[j] = Rcpp::as<double>(expansion_variance(j + 1, A, B, proposed_bin[j], bart_fit0, bart_fit1, 3));
       }
       // Best covariate to expand along
       int expand_along = which_min(bin_var); // what if all equal
@@ -190,4 +190,3 @@ List greedy_cpp(NumericMatrix test_treated_covs, IntegerVector test_control, Int
   List ret = List::create(CATE, all_A, all_B);
   return(ret);
 }
-

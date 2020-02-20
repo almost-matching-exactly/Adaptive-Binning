@@ -53,10 +53,10 @@ simulate_data <- function(n_units=100, p=3, n_train=floor(n_units/2),
 matching_sim <- function(n_sims = 10, n_units = 100, p = 3, n_train = floor(n_units / 2),
                          estimators = c('Full Matching', 'Prognostic', 'CEM',
                                         'Mahalanobis', 'Nearest Neighbor', 'Greedy', 'MIQP-Grid'),
-                         black_box = 'BART', cv = TRUE,
+                         black_box = 'BART', cv = FALSE,
                          X_dgp = NULL, e_dgp=NULL, y_dgp = NULL,
-                         lambda = 1, alpha = 0, beta = 1, gamma = 1, 
-                         lambda0 = 10, lambda1 = 10, gamma0 = 1, gamma1 = 1, m = 1, M = 1e5) {
+                         lambda = 1, alpha = 0, beta = 2, gamma = 1, 
+                         lambda0 = 0, lambda1 = 0, gamma0 = 3, gamma1 = 3, m = 1, M = 1e5) {
   all_CATEs <- NULL
   all_bins <- vector('list', length = n_sims)
   all_test_dfs <- vector('list', length = n_sims)
@@ -86,12 +86,13 @@ matching_sim <- function(n_sims = 10, n_units = 100, p = 3, n_train = floor(n_un
     all_bins[[sim]] <- this_sim_bins
     all_test_dfs[[sim]] <- inputs$test_df
     
-    print(sprintf('%d of %d simulations completed', sim, n_sims))
+    # print(sprintf('%d of %d simulations completed', sim, n_sims))
   }
   
   return(list(CATEs = all_CATEs, 
               bins = all_bins,
               test_df = all_test_dfs,
-              fit = inputs$bart_fit))
+              fit0 = inputs$bart_fit0,
+              fit1 = inputs$bart_fit1))
 }
 
