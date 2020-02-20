@@ -7,7 +7,7 @@ editor_options:
 
 ```{r setup, include=FALSE, warnings=FALSE}
 knitr::opts_chunk$set(echo = FALSE, warning=FALSE, message = FALSE, error=FALSE)
-setwd("/home/marco/Dropbox/Duke/projects/FLAME-binning/Adaptive-Binning/")
+setwd(path.expand("~/Dropbox/Duke/projects/FLAME-binning/Adaptive-Binning/"))
 source("AB_MIPs.R")
 library(ggplot2)
 library(reshape2)
@@ -80,7 +80,6 @@ ggplot(simdata) +
   xlab("x") + ylab("y") + theme_bw() + 
   theme(legend.position = c(0.8,0.2), legend.background = element_rect(color="black", size=0.5),
         legend.title = element_blank())
-
 ```
 
 ## 2D Example MIQP-Variance
@@ -1031,6 +1030,12 @@ nsims <- 10
 # nsims = 5
 # n = 400
 # n_train = 300
+
+
+n_dgp <- length(all_y_dgp)
+nsims = 5
+n = 600
+n_train = 200
 alpha=0
 lambda0=0
 lambda1=0
@@ -1316,10 +1321,9 @@ for (dgp in 1:n_dgps) {
     for (l in 1:n_test_treated){
       i = test_treated[l]
       message(paste("Matching unit", l, "of", n_test_treated), "\r", appendLF = FALSE); flush.console()
-  
       mip_pars =  setup_miqp_fhat(xi = as.numeric(test_covs[i, ]),
-                                  x_test = as.matrix(test_covs[-i, ]),
-                                  z_test = test_df$treated[-i],
+                                  x_test = as.matrix(test_covs ),
+                                  z_test = test_df$treated,
                                   fhati1=fhat1[i],
                                   fhati0=fhat0[i],
                                   fhat1=fhat1[-i],

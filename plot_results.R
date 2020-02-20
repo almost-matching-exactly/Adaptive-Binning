@@ -208,6 +208,38 @@ CATE_scatter_plot <- function(res){
   print(p)
 }
 
+static_2d_bin_plot <- function(bins, test_df, cov1, cov2){
+  bindata = data.frame(a1=bins[, cov1, 1], a2=bins[, cov2, 1], b1=bins[, cov1, 2], b2=bins[, cov2, 2])
+  simdata = data.frame(x1=test_df[, cov1], x2=test_df[, cov2], y=test_df$treated)
+  ggplot(simdata) + 
+    geom_rect(data=bindata, aes(xmin=a1, ymin=a2, xmax=b1, ymax=b2), fill="grey", 
+              color="black", size=0.5, alpha=0) + 
+    geom_point(aes(x=x1, y=x2, color=y), size=2) +
+    ylim(c(min(simdata$x2[simdata$y==1]), max(simdata$x2[simdata$y==1]))) + 
+    xlim(c(min(simdata$x1[simdata$y==1]), max(simdata$x1[simdata$y==1]))) + 
+    scale_color_manual(values=c('black', 'red')) + 
+    xlab("x1") + ylab("x2") +  labs(color="Treated") +  theme_bw() + 
+    theme(legend.position = c(0.95,0.85), 
+          legend.background = element_rect(color="black", size=0.5))
+}
+
+static_1d_bin_plot <- function(bins, test_df, cov){
+  bindata <- data.frame(unique(bins[,cov,]))
+  names(bindata) <- c('a', 'b')
+  simdata = data.frame(x=test_df[, cov], tr=test_df$treated, y=test_df$Y)
+  ggplot(simdata) + 
+    geom_rect(data=bindata, aes(xmin=a, ymin=min(simdata$y[simdata$tr==1], na.rm=T), xmax=b, 
+                                ymax=max(simdata$y[simdata$tr==1],na.rm=T)), 
+              color="black", size=0.5, alpha=0, fill="grey") +
+    geom_point(aes(x=x, y=y, color=tr), size=2) + 
+    ylim(c(min(simdata$y[simdata$tr==1]), max(simdata$y[simdata$tr==1]))) +
+    xlim(c(min(simdata$x[simdata$tr==1]), max(simdata$x[simdata$tr==1]))) +
+    scale_color_manual(values=c('red', 'black'), labels=c('control', 'treated')) +
+    xlab("x") + ylab("y") + theme_bw() + 
+    theme(legend.position = c(0.95,0.9), legend.background = element_rect(color="black", size=0.5),
+          legend.title = element_blank())
+}
+
 
 # CATE_error_plot(res)
 # dat <- matrix(c(1, 3, 2, 5, 2, 4, 0, 2, 1, 2.5, 1.5, 1.5), ncol = 6, byrow = TRUE) %>%
