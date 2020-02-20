@@ -24,6 +24,7 @@ size_vs_error_plot <- function(sim_out, estimator, sim_number = 1) {
 
 
 bin_plot <- function(bins, test_df, cov1, cov2, fhat, background = FALSE, ...) {
+  # browser()
   # Input covariates / dimensions for which you would like bins
   boundaries <- c(...)
   test_control <- 
@@ -51,21 +52,19 @@ bin_plot <- function(bins, test_df, cov1, cov2, fhat, background = FALSE, ...) {
   max_dim1 <- max(bins$point1, na.rm = TRUE)
   max_dim2 <- max(bins$point2, na.rm = TRUE)
   
-  # browser()
   if (background) {
     predict_points <- 
       expand.grid(seq(min_dim1, max_dim1, length.out = 50),
                   seq(min_dim2, max_dim2, length.out = 50)) %>%
       as.matrix() %>%
-      cbind(1) %>%
-      `colnames<-`(c('X1', 'X2', 'treated'))
+      `colnames<-`(c('X1', 'X2'))
     # browser()
       ###### FIX THIS FOR WHEN DIM > 2 and you need to integrate over other dimensions
     preds <- colMeans(predict(fhat, predict_points))
     
     predict_points %<>%
       as.data.frame() %>%
-      `colnames<-`(c('X1', 'X2', 'treated')) %>%
+      `colnames<-`(c('X1', 'X2')) %>%
       mutate(preds = preds)
   }
   if (sum(is.na(bins$lower1)) == 0) {
@@ -78,7 +77,8 @@ bin_plot <- function(bins, test_df, cov1, cov2, fhat, background = FALSE, ...) {
   
   p <- ggplot(data = bins)
   if (background) {
-    p <- p + geom_raster(data = predict_points, aes(x = X1, y = X2, fill = preds))
+    p <- p + geom_raster(data = predict_points, aes(x = X1, y = X2, fill = preds), 
+                         interpolate = TRUE)
   }
   p <- p + 
     geom_rect_interactive(aes(xmin = lower1, xmax = upper1,
@@ -136,9 +136,9 @@ CATE_error_plot <- function(res) {
   ATT <- mean(res$actual)
   
   res$estimator %<>% 
-    factor(levels = c('BART', 'BART of 1', 'BART of 2', 'Best CF', 
-                      'MIP', 'MIP_both', 'Greedy', 
-                      'CEM', 'Full Matching', 'Nearest Neighbor', 'Prognostic', 'Mahalanobis', 'GenMatch'))
+    factor(levels = c('BART', 'Best CF', 
+                      'MIP', 'Approximate', 
+                      'CEM', 'Full Matching', 'Nearest Neighbor', 'Prognostic', 'Mahal', 'GenMatch'))
   
   res %<>% 
     mutate(error = abs(predicted - actual))
@@ -157,7 +157,7 @@ CATE_error_plot <- function(res) {
     summarize(mean = mean(error, na.rm = TRUE))
   
   baseline_estimators <- intersect(estimators, 
-                                   c('Greedy', 'MIP', 'MIP_both', 'MIP-Explain', 'MIP-Predict', 'MIQP-Variance'))
+                                   c('Approximate', 'MIP'))
   
   baseline_mean <- 
     group_means %>%
@@ -183,7 +183,7 @@ CATE_error_plot <- function(res) {
     geom_violin(aes(y = error / ATT, x = estimator, fill = estimator),
                 color = "black", draw_quantiles = c(0.5), size = 0.2) + 
     geom_segment(x = 4.5, xend = 4.5, y = 0, yend = max_error_plotted) + 
-    geom_segment(x = 7.5, xend = 7.5, y = 0, yend = max_error_plotted) + 
+    geom_segment(x = 2.5, xend = 2.5, y = 0, yend = max_error_plotted) + 
     geom_text(data = perc_missing, 
               aes(x = estimator, y = max_error_plotted + 0.25, label = percent_missing)) +
     annotate('text', x = 5.5, y = max_error_plotted + 0.5, label = 'Percent Missing') +
@@ -201,8 +201,7 @@ CATE_scatter_plot <- function(res){
   
   p <- ggplot(data=res) + 
        geom_point(aes(x=actual, y=predicted)) + 
-       geom_smooth(aes(x=actual, y=predicted)) + 
-       geom_abline(intercept = 0, slope=1) + 
+       geom_abline(intercept = 0, slope=1, color = 'red', size = 1.5) + 
        facet_wrap(estimator~.) + 
        theme_minimal()
   
