@@ -887,26 +887,28 @@ y_dgp_quadratic <- function(x, z, eps) {
   beta_tilde <- 2
   gamma_tilde <- 1
   Y <-
-    beta_tilde * rowSums(x^2) * z +
-    gamma_tilde * rowSums(x^2) + eps
+    beta_tilde * rowSums((x - 0.5) ^ 2) * z +
+    gamma_tilde * rowSums((x - 0.5) ^ 2) + eps
   return(Y)
 }
 
 y_dgp_linear_irr <- function(x, z, eps) {
   beta_tilde <- 3
-  gamma_tilde <- 2
+  gamma_tilde <- 3
   Y <- 
-    beta_tilde * (x[, 1] - 0) * z +
-    gamma_tilde * (x[, 1] - 0) + eps
+    beta_tilde * x[, 1] * z +
+    gamma_tilde * rowSums(x) + eps
   return(Y)
 }
 
 y_dgp_constant_irr <- function(x, z, eps) {
-  beta_tilde <- 3
+  confounding <- rowSums(x)
+  treatment <- 1
+  beta_tilde <- 5
   gamma_tilde <- 2
   Y <- 
-    beta_tilde * z +
-    gamma_tilde * (x[, 1] - 0) + eps
+    beta_tilde * treatment * z +
+    gamma_tilde * confounding + eps
   return(Y)
 }
 
@@ -917,9 +919,10 @@ y_dgp_simple <- function(x, z, eps) {
   return(Y)
 }
 
-y_dgp_box = function(X, Z, eps){
-  ind = (X[, 1] > 0.5  & X[, 2] > 0.5)
-  return(1 + Z * 5 + ind * 3 + eps)
+y_dgp_box = function(X, Z, eps) {
+  treatment = (X[, 1] > 0.25 & X[, 2] > 0.25 & X[, 3] > 0.25 & X[, 4] > 0.25 & X[, 5] > 0.25)
+  confounding <- (X[, 1] > 0.25) + (X[, 2] > 0.25) + (X[, 3] > 0.25) + (X[, 4] > 0.25) + (X[, 5] > 0.25)
+  return(confounding * 2 + 5 * Z * treatment + eps)
 }
 
 y_dgp_bart = function(X, Z, eps){
@@ -928,166 +931,645 @@ y_dgp_bart = function(X, Z, eps){
 }
 
 x_dgp = function(n, p){
-  return(matrix(runif(n*p, 0, 1), n, p))
+  return(matrix(rbinom(n * p, size = 1, prob = 0.3), n, p))
+  # return(matrix(runif(n * p, min = 0, max = 1), nrow = n, ncol = p))
 }
+```
 
 
+```{r}
+set.seed(345)
 ########################################################
 # Simulations
 ########################################################
-all_y_dgp <- list(y_dgp_linear_irr,
-                  y_dgp_quadratic,
-                  y_dgp_bart)
-all_p_vals <- list(2, 2, 5) # Need as many ps as dgps
 
-sim_types <- c('Linear', 
-               'Quadratic',
-               'Bart Function')
+# x_dgp <- function(Z, p_rel, p_irrel) {
+#   n <- length(Z)
+#   x_rel <-
+#     runif(n * p_rel, min = 0, max = 1) %>%
+#     matrix(nrow = n)
+#   
+#   # x_rel <- 
+#   #   rbinom(n * p_rel, size = 1, prob = 0.5) %>%
+#   #   matrix(nrow = n)
+#   
+#   x <- x_rel
+#   for (i in 1:p_irrel) {
+#     x %<>%
+#       cbind(rbeta(n, shape1 = 1 + 8 * Z, shape2 = 9 - 8 * Z))
+#   }
+#   return(x)
+# }
 
+y_dgp_FLAME <- function(X, Z, eps, p_rel, U = 1, max_nonlinear = 5) {
+  n <- nrow(X)
+  
+  s <- sample(c(-1, 1), size = p_rel, replace = TRUE)
+  alpha <- rnorm(p_rel, 10 *s, 1)
+  baseline <- X[, 1:p_rel] %*% alpha
+  
+  baseline <- sweep(X[, 1:p_rel], 2, 1:p_rel, '*') %*% rnorm(p_rel, 10, 1)
+  
+  beta <- rnorm(p_rel, 1.5, 0.15)
+  linear_treated <- X[, 1:p_rel] %*% beta * Z
+  
+  interactions <- combn(1:max_nonlinear, 2)
+  nonlinear_treated <- rep(0, n)
+  for (i in 1:ncol(interactions)) {
+    nonlinear_treated %<>% 
+      add(X[, interactions[1, i]] * X[, interactions[2, i]])
+  }
+  nonlinear_treated <- nonlinear_treated * Z * U
+  
+  Y <- baseline + linear_treated + nonlinear_treated + eps
+  
+  return(Y)
+}
 
-n_dgp <- length(all_y_dgp)
-nsims = 5
-n = 400
-n_train = 300
+y_dgp_MALTS <- function(X, Z, p_rel) {
+  n <- length(Z)
+  a <- sample(c(-1, 1), size = p_rel, replace = TRUE)
+  beta <- a * 10 / (2 ^ c(1:p_rel))
+  
+  alpha <- rnorm(p_rel, 1, sqrt(0.5))
+  # baseline <- X[, 1:p_rel] %*% alpha
+  baseline <- sweep(X[, 1:p_rel], 2, 1:p_rel, '*') %*% rnorm(p_rel, 5, 1)
+  
+  linear_treated <- X[, 1:p_rel] %*% beta * Z
+  
+  interactions <- combn(1:p_rel, 2)
+  nonlinear_treated <- rep(0, n)
+  for (i in 1:ncol(interactions)) {
+    nonlinear_treated %<>% 
+      add(X[, interactions[1, i]] * X[, interactions[2, i]])
+  }
+  nonlinear_treated <- nonlinear_treated * Z
+  
+  return(baseline + linear_treated + nonlinear_treated)
+}
+  
+y_dgp <- function(x, z, eps) {
+  beta <- 3
+  gamma <- 3
+  confounding <- rowSums(x[, 1:2] ^ 2)
+  Y <- beta * z + gamma * confounding + eps
+}
+
+x_dgp = function(n, p){
+  # return(matrix(rbinom(n * p, size = 1, prob = 0.5), n, p))
+  return(matrix(runif(n * p, min = 0, max = 1), nrow = n, ncol = p))
+}
+
+n <- 600
+n_train <- 400
+p <- 5
+# p_rel <- 8
+# p_irrel <- 2
+# p <- p_rel + p_irrel
+nsims <- 10
+
+# nsims = 5
+# n = 400
+# n_train = 300
 alpha=0
 lambda0=0
 lambda1=0
-gamma0=2
-gamma1=2
-beta=3
+gamma0=3
+gamma1=3
+beta=2
 m=1
 M=1e5
-all_dgp_CATEs <- vector('list', length = n_dgp)
-for (dgp in 1:n_dgp) {
-  y_dgp <- all_y_dgp[[dgp]]
-  p = all_p_vals[[dgp]]
+ratios <- c(1, 3, 5, 7, 10)
+all_CATEs = NULL
+# message(paste('Starting', sim_types[dgp], 'DGP', sep = ' '))
+for (sim in 1:nsims) {
+  CATEs <- NULL
+  c(df, HTE) %<-% simulate_data(n, p, y_dgp = y_dgp, X_dgp=x_dgp)
 
-  all_CATEs = NULL
-  message(paste('Starting', sim_types[dgp], 'DGP', sep = ' '))
+  inputs <- estimator_inputs(df, n_train, n, 'BART', cv = TRUE)
+  c(df, f, n, n_train, p,
+      train_df, train_covs, train_control, train_treated,
+      test_df, test_covs, test_control, test_treated, 
+      n_test_control, n_test_treated, 
+      bart_fit0, bart_fit1, counterfactuals) %<-% inputs
+  HTE_test_treated = HTE[(n_train+1):n][test_df$treated]
+  
+  ftrue0 = y_dgp(test_covs, rep(0, n - n_train), rep(0, n - n_train))
+  
+  # Matching methods
+  # 1-k matching methods 
+  m_estimators <- c('Prognostic', 'GenMatch',
+                    'Mahalanobis', 'Nearest Neighbor')
+  
+  for (r in ratios) {
+    est_out <- 
+      suppressWarnings(get_CATEs(inputs, 
+                                 r, 
+                                 m_estimators, 
+                                 hyperparameters = as.list(rep(0, 10))))
+    CATEs %<>% cbind(est_out$CATEs)
+    # best match on true expected CF
+    CATEs %<>% est_prog(test_df, ftrue0[test_treated], ratio = r)
+  }
+  
+  # Not 1-k methods
+   est_out <- 
+      suppressWarnings(get_CATEs(inputs, 
+                                 r, 
+                                 c('Greedy', 'CEM', 'Full Matching'), 
+                                 hyperparameters = as.list(rep(0, 10))))
+   
+   CATEs %<>% cbind(est_out$CATEs)
+  
+  
+  # message(paste("Mean best CF error", mean(abs(CATEs[, 6] - HTE_test_treated))))
+  
+  ## BART
+  fhat1 = colMeans(predict(bart_fit1, test = as.matrix(test_covs)))
+  fhat0 = colMeans(predict(bart_fit0, test = as.matrix(test_covs)))
+  # # fhat1 = colMeans(predict(bart_fit, test = as.matrix(cbind(test_covs, treated=1))))
+  # # fhat0 = colMeans(predict(bart_fit, test = as.matrix(cbind(test_covs, treated=0))))
+  bcates = (fhat1 - fhat0)
+  CATEs %<>% bcates[test_treated]
+  # message(paste("Mean BART error", mean(abs(CATEs[, 7] - HTE_test_treated))))
+  
+  ## BART overfit v1
+  # ofcates = rep(NA, n_test_treated)
+  # for (l in 1:n_test_treated){
+  #   i = test_treated[l]
+  #   match0 = which.min(abs(fhat0[i] - test_df$Y[test_control]))
+  #   match1 = which.min(abs(fhat1[i] - test_df$Y[test_treated]))
+  #   ofcates[l] = test_df$Y[test_treated][match1] - test_df$Y[test_control][match0]
+  # }
+  # CATEs = cbind(CATEs, ofcates)
+  # 
+  # ## BART overfit v2
+  # ofcates2 = rep(NA, n_test_treated)
+  # for (l in 1:n_test_treated){
+  #   i = test_treated[l]
+  #   match0 = which.min(abs(fhat0[i] - fhat0[test_control]))
+  #   match1 = which.min(abs(fhat1[i] - fhat1[test_treated]))
+  #   ofcates2[l] = test_df$Y[test_treated][match1] - test_df$Y[test_control][match0]
+  # }
+  # CATEs = cbind(CATEs, ofcates2)
+  
+  ## MIP
+  # mip_cates = vector('numeric', n_test_treated)
+  mip_cates_both = vector('numeric', n_test_treated)
+  mip_bins = array(NA, c(n_test_treated, p, 2))
+  message("Running MIQP-Fhat")
+  for (l in 1:n_test_treated){
+    i = test_treated[l]
+    message(paste("Matching unit", l, "of", n_test_treated), "\r", appendLF = FALSE); flush.console()
+
+    mip_pars =  setup_miqp_fhat(xi = as.numeric(test_covs[i, ]),
+                                x_test = as.matrix(test_covs[-i, ]),
+                                z_test = test_df$treated[-i],
+                                fhati1=fhat1[i],
+                                fhati0=fhat0[i],
+                                fhat1=fhat1[-i],
+                                fhat0=fhat0[-i],
+                                alpha=alpha, lambda0=lambda0, lambda1=lambda1,
+                                gamma0=gamma0/sd(fhat0), gamma1=gamma1/sd(fhat1),
+                                beta=beta, m=m, M=M)
+    sol <- do.call(Rcplex, c(mip_pars, list(objsense="max", control=list(trace=0))))
+    mip_out = recover_pars(sol, n_train, nrow(test_covs), p)
+
+    mip_bins[l, ,1] = mip_out$a
+    mip_bins[l, ,2] = mip_out$b
+  #
+    mg = make_mg(test_covs, mip_out$a, mip_out$b)
+    # mip_cates[l] = test_df$Y[i] - mean(test_df$Y[mg][!test_df$treated[mg]])
+    mip_cates_both[l] = mean(test_df$Y[mg][test_df$treated[mg]]) - mean(test_df$Y[mg][!test_df$treated[mg]])
+  }
+  # message("")
+  # CATEs <- cbind(CATEs, mip_cates)
+  CATEs <- cbind(CATEs, mip_cates_both)
+  # message(paste("Mean MIP error", mean(abs(CATEs[, 8] - HTE_test_treated), na.rm=T)))
+  
+  
+  # fcates = format_CATEs(CATEs, true_CATE = HTE_test_treated,
+  #                     estimators = c('Full Matching', 'Prognostic', 'GenMatch', 'CEM', 'Approximate',
+  #                                    'Mahal', 'Nearest Neighbor',
+  #                                    'Best CF', 'BART', 'MIP'))
+  fcates <- 
+    format_CATEs(CATEs, 
+                 true_CATE = HTE_test_treated,
+                 estimators = c('Prognostic1', 'GenMatch1', 'Mahal1', 'Nearest Neighbor1', 'Best CF1',
+                                'Prognostic3', 'GenMatch3', 'Mahal3', 'Nearest Neighbor3', 'Best CF3',
+                                'Prognostic5', 'GenMatch5', 'Mahal5', 'Nearest Neighbor5', 'Best CF5',
+                                'Prognostic7', 'GenMatch7', 'Mahal7', 'Nearest Neighbor7', 'Best CF7',
+                                'Prognostic10', 'GenMatch10', 'Mahal10', 'Nearest Neighbor10', 'Best CF10',
+                                'Fast ABH', 'CEM', 'Full Matching', 'BART', 'MIP ABH'))
+  
+  all_CATEs <- rbind(all_CATEs, fcates)
+  message(sprintf('%d of %d simulations completed', sim, nsims))
+}
+# print(summarize_CATEs(all_CATEs))
+```
+
+## Sim to end all sims
+```{r}
+set.seed(345)
+
+x_dgp_cont <- function(n, p) {
+  return(matrix(runif(n * p, min = 0, max = 1), nrow = n, ncol = p))
+}
+
+x_dgp_binary <- function(n, p) {
+  return(matrix(rbinom(n * p, size = 1, prob = 0.5), nrow = n, ncol = p))
+}
+
+x_dgp_mixed <- function(n, p) {
+  matrix(runif(n * p / 2, min = 0, max = 1), nrow = n, ncol = p / 2) %>%
+    cbind(matrix(rbinom(n * p / 2, size = 1, prob = 0.5), nrow = n, ncol = p / 2)) %>%
+    return()
+}
+
+y_dgp_none <- function(x, z, eps) {
+  beta <- 3
+  gamma <- 3
+  confounding <- 0
+  Y <- beta * z + gamma * confounding + eps
+}
+
+y_dgp_box <- function(x, z, eps) {
+  beta <- 3
+  gamma <- 3
+  confounding <- (x[, 1] > 0.5 & x[, 2] > 0.5)
+  Y <- beta * z + gamma * confounding + eps
+}
+
+y_dgp_linear <- function(x, z, eps) {
+  beta <- 3
+  gamma <- 3
+  confounding <- rowSums(x)
+  Y <- beta * z + gamma * confounding + eps
+}
+
+y_dgp_quad <- function(x, z, eps) {
+  beta <- 3
+  gamma <- 3
+  confounding <- rowSums(x ^ 2)
+  Y <- beta * z + gamma * confounding + eps
+}
+
+y_dgp_binary <- function(x, z, eps) {
+  beta <- 3
+  gamma <- 3
+  confounding <- x[, 1]
+  Y <- beta * z + gamma * confounding + eps
+}
+
+y_dgp_mixed <- function(x, z, eps) {
+  beta <- 3
+  gamma <- 3
+  confounding <- 2 * x[, 1] + x[, 2]
+  Y <- beta * z + gamma * confounding + eps
+}
+
+dgp_types <- c('None', 'Box', 'Linear', 'Quad', 
+               'Quad Irrelevant', 'Binary Irrelevant', 'Mixed')
+
+n_covs <- c(2, 2, 2, 2, 5, 2, 4)
+cross_validate <- c(T, T, F, F, F, F, F)
+y_dgp_funcs <- list(y_dgp_none, y_dgp_box, y_dgp_linear, y_dgp_quad,
+                  y_dgp_quad, y_dgp_binary, y_dgp_mixed)
+x_dgp_funcs <- list(x_dgp_cont, x_dgp_cont, x_dgp_cont, x_dgp_cont,
+                    x_dgp_cont, x_dgp_binary, x_dgp_mixed)
+
+n_dgps <- length(dgp_types)
+
+n <- 600
+n_train <- 400
+nsims <- 10
+
+alpha=0
+lambda0=0
+lambda1=0
+gamma0=3
+gamma1=3
+beta=2
+m=1
+M=1e5
+
+for (dgp in 1:n_dgps) {
+  p <- n_covs[dgp]
+  y_dgp <- y_dgp_funcs[[dgp]]
+  x_dgp <- x_dgp_funcs[[dgp]]
+  ratios <- c(1, 3, 5, 7, 10)
+  all_CATEs <- NULL
+  all_dfs <- vector(mode = 'list', length = nsims)
   for (sim in 1:nsims) {
-    c(df, HTE) %<-% simulate_data(n, p, y_dgp = y_dgp, X_dgp=x_dgp)
-    inputs <- estimator_inputs(df, n_train, n, 'BART', cv = FALSE)
+    CATEs <- NULL
+    c(df, HTE) %<-% 
+      simulate_data(n_units = n, p = p, n_train = n_train, 
+                    X_dgp = x_dgp, e_dgp = NULL, y_dgp = y_dgp)
+    
+    all_dfs[[sim]] <- df
+  
+    inputs <- estimator_inputs(df, n_train, n, 'BART', cv = cross_validate[dgp])
     c(df, f, n, n_train, p,
         train_df, train_covs, train_control, train_treated,
         test_df, test_covs, test_control, test_treated, 
         n_test_control, n_test_treated, 
-        bart_fit, counterfactuals) %<-% inputs
+        bart_fit0, bart_fit1, counterfactuals) %<-% inputs
     HTE_test_treated = HTE[(n_train+1):n][test_df$treated]
     
-    # Matching methods
-
-    m_estimators <- c('Full Matching', 'Prognostic', 'CEM', 'GenMatch',
-                      'Mahalanobis', 'Nearest Neighbor', 'Greedy')
-    est_out <- suppressWarnings(get_CATEs(inputs, m_estimators, hyperparameters = list(0, 0, 0, 0, 0, 0, 0, 0, 0, 0)))
-
-    CATEs = est_out$CATEs
+    ftrue0 <- y_dgp(test_covs, rep(0, n - n_train), rep(0, n - n_train))
     
-    ## best match on true expected CF
-    ftrue0 = y_dgp(test_covs, rep(0, n - n_train), rep(0, n - n_train))
-    CATEs = cbind(CATEs, est_prog(test_df, ftrue0[test_treated]))
-    # message(paste("Mean best CF error", mean(abs(CATEs[, 6] - HTE_test_treated))))
+    # Matching methods
+    # 1-k matching methods 
+    m_estimators <- c('Prognostic', 'GenMatch',
+                      'Mahalanobis', 'Nearest Neighbor')
+    
+    for (r in ratios) {
+      est_out <- 
+        suppressWarnings(get_CATEs(inputs, 
+                                   r, 
+                                   m_estimators, 
+                                   hyperparameters = as.list(rep(0, 10))))
+      CATEs %<>% cbind(est_out$CATEs)
+      # best match on true expected CF
+      CATEs %<>% est_prog(test_df, ftrue0[test_treated], ratio = r)
+    }
+    
+    # Not 1-k methods
+     est_out <- 
+        suppressWarnings(get_CATEs(inputs, 
+                                   r, 
+                                   c('Greedy', 'CEM', 'Full Matching'), 
+                                   hyperparameters = as.list(rep(0, 10))))
+     
+     CATEs %<>% cbind(est_out$CATEs)
     
     ## BART
-    fhat1 = colMeans(predict(bart_fit, test = as.matrix(cbind(test_covs, treated=1))))
-    fhat0 = colMeans(predict(bart_fit, test = as.matrix(cbind(test_covs, treated=0))))
+    fhat1 = colMeans(predict(bart_fit1, test = as.matrix(test_covs)))
+    fhat0 = colMeans(predict(bart_fit0, test = as.matrix(test_covs)))
     bcates = (fhat1 - fhat0)
-    CATEs = cbind(CATEs, bcates[test_treated])
-    # message(paste("Mean BART error", mean(abs(CATEs[, 7] - HTE_test_treated))))
-    
-    ## BART overfit v1
-    ofcates = rep(NA, n_test_treated)
-    for (l in 1:n_test_treated){
-      i = test_treated[l]
-      match0 = which.min(abs(fhat0[i] - test_df$Y[test_control]))
-      match1 = which.min(abs(fhat1[i] - test_df$Y[test_treated]))
-      ofcates[l] = test_df$Y[test_treated][match1] - test_df$Y[test_control][match0]
-    }
-    CATEs = cbind(CATEs, ofcates)
-    
-    ## BART overfit v2
-    ofcates2 = rep(NA, n_test_treated)
-    for (l in 1:n_test_treated){
-      i = test_treated[l]
-      match0 = which.min(abs(fhat0[i] - fhat0[test_control]))
-      match1 = which.min(abs(fhat1[i] - fhat1[test_treated]))
-      ofcates2[l] = test_df$Y[test_treated][match1] - test_df$Y[test_control][match0]
-    }
-    CATEs = cbind(CATEs, ofcates2)
+    CATEs %<>% bcates[test_treated]
     
     ## MIP
-    mip_cates = vector('numeric', n_test_treated)
     mip_cates_both = vector('numeric', n_test_treated)
     mip_bins = array(NA, c(n_test_treated, p, 2))
     message("Running MIQP-Fhat")
     for (l in 1:n_test_treated){
       i = test_treated[l]
       message(paste("Matching unit", l, "of", n_test_treated), "\r", appendLF = FALSE); flush.console()
-      
+  
       mip_pars =  setup_miqp_fhat(xi = as.numeric(test_covs[i, ]),
                                   x_test = as.matrix(test_covs[-i, ]),
                                   z_test = test_df$treated[-i],
                                   fhati1=fhat1[i],
                                   fhati0=fhat0[i],
                                   fhat1=fhat1[-i],
-                                  fhat0=fhat0[-i], 
+                                  fhat0=fhat0[-i],
                                   alpha=alpha, lambda0=lambda0, lambda1=lambda1,
-                                  gamma0=gamma0/sd(fhat0), gamma1=gamma1/sd(fhat1), 
+                                  gamma0=gamma0/sd(fhat0), gamma1=gamma1/sd(fhat1),
                                   beta=beta, m=m, M=M)
       sol <- do.call(Rcplex, c(mip_pars, list(objsense="max", control=list(trace=0))))
       mip_out = recover_pars(sol, n_train, nrow(test_covs), p)
-    
+  
       mip_bins[l, ,1] = mip_out$a
       mip_bins[l, ,2] = mip_out$b
-  
       mg = make_mg(test_covs, mip_out$a, mip_out$b)
-      mip_cates[l] = test_df$Y[i] - mean(test_df$Y[mg][!test_df$treated[mg]])
       mip_cates_both[l] = mean(test_df$Y[mg][test_df$treated[mg]]) - mean(test_df$Y[mg][!test_df$treated[mg]])
     }
-    message("")
-    CATEs <- cbind(CATEs, mip_cates)
     CATEs <- cbind(CATEs, mip_cates_both)
-    # message(paste("Mean MIP error", mean(abs(CATEs[, 8] - HTE_test_treated), na.rm=T)))
+  
+    fcates <- 
+      format_CATEs(CATEs, 
+                   true_CATE = HTE_test_treated,
+                   estimators = c('Prognostic1', 'GenMatch1', 'Mahal1', 'Nearest Neighbor1', 'Best CF1',
+                                  'Prognostic3', 'GenMatch3', 'Mahal3', 'Nearest Neighbor3', 'Best CF3',
+                                  'Prognostic5', 'GenMatch5', 'Mahal5', 'Nearest Neighbor5', 'Best CF5',
+                                  'Prognostic7', 'GenMatch7', 'Mahal7', 'Nearest Neighbor7', 'Best CF7',
+                                  'Prognostic10', 'GenMatch10', 'Mahal10', 'Nearest Neighbor10', 'Best CF10',
+                                  'Fast ABH', 'CEM', 'Full Matching', 'BART', 'MIP ABH'))
     
-    fcates = format_CATEs(CATEs, true_CATE = HTE_test_treated,
-                        estimators = c('Full Matching', 'Prognostic', 'CEM', 'GenMatch',
-                                       'Mahalanobis', 'Nearest Neighbor', 'Greedy',
-                                       'Best CF', 'BART', 'BART of 1', 'BART of 2',  'MIP', 'MIP_both'))
     all_CATEs <- rbind(all_CATEs, fcates)
     message(sprintf('%d of %d simulations completed', sim, nsims))
   }
-  all_dgp_CATEs[[dgp]] <- all_CATEs
+  saveRDS(all_dfs, paste0(dgp_types[dgp], '_dfs.rds'))
+  saveRDS(all_CATEs, paste0(dgp_types[dgp], '_CATEs.rds'))
 }
-#saveRDS(all_dgp_CATEs, 'sims_2-12_part2.rds')
-# CATE_error_plot(all_CATEs)
-# print(summarize_CATEs(all_CATEs))
-#bin_plot(mip_bins, test_df, 1, 2)
 ```
+
+
+# MIP -- Greedy
+```{r}
+overlap <- matrix(, nrow = n_test_treated, ncol = 2)
+for (i in 1:n_test_treated) {
+  mip_vec <- NULL
+  greedy_vec <- NULL
+  for (k in 1:nrow(test_df)) {
+    if (all(test_covs[k, ] < mip_bins[i, , 2]) & 
+        all(test_covs[k, ] > mip_bins[i, , 1])) {
+      mip_vec %<>% c(k)
+    }
+    if (all(test_covs[k, ] < est_out$bins[['Greedy']][i, , 2]) & 
+        all(test_covs[k, ] > est_out$bins[['Greedy']][i, , 1])) {
+      greedy_vec %<>% c(k)
+    }
+  }
+  overlap[i, 1] <- mean(mip_vec %in% greedy_vec)
+  overlap[i, 2] <- mean(greedy_vec %in% mip_vec)
+}
+apply(overlap, 2, median, na.rm = TRUE)
+```
+
+
+
+## Bin viz
+```{r}
+n = 100
+n_train = 200
+n_test = 200
+p = 2
+#x_train = matrix(rexp(n_train*p, 2), n_train, p)
+#x_test = matrix(rexp(n_test*p, 2), n_test, p)
+x_train = matrix(runif(n_train*p, 0, 1), n_train, p)
+x_test = matrix(runif(n_test*p, 0, 1), n_test, p)
+y_train = 10 * rowSums(x_train ^ 2) + rnorm(n_train, 0, 1)
+y_test = 10 * rowSums(x_test ^ 2) + rnorm(n_test, 0, 1)
+z_train = rep(1, n_train)
+z_train[sample(1:n_train, n_train/2, replace = FALSE)] = 0
+z_test = rep(0, n_test)
+simdata = matrix(NA, n_test, 3* p + 2)
+simdata = data.frame(simdata)
+names(simdata) = c(paste("x",1:p, sep=""), 
+                   paste("a", 1:p, sep=""), 
+                   paste("b", 1:p, sep=""), "y", "yest")
+t1 = proc.time()[3]
+# xg = xgboost(data = x_train, label = y_train, nrounds = 50, verbose = F)
+# fhat = predict(xg, newdata = x_test)
+bart_fit = bart(x_train, y_train, x_test, keeptrees = T, verbose = 0)
+fhat = colMeans(predict(bart_fit, test=x_test))
+obj = rep(NA, n_test)
+mip_outputs = list()
+
+# xi = x_test[i,]
+#   mip_pars = setup_miqp_fhat(xi = xi, fhat1 = fhat[-i], fhat0=fhat[-i], 
+#                              fhati1=fhat[i], fhati0=fhat[i], 
+#                              z_test=z_test[-i],
+#                              x_test =  x_test[-i, ], 
+#                              lambda1=3, lambda0=3, gamma1=5, gamma0=5, 
+#                              alpha=0, beta=1, m=1, M=1e5)
+#   sol = Rcplex(cvec=mip_pars$cvec, Amat=mip_pars$Amat, Qmat = mip_pars$Qmat,
+#                bvec=mip_pars$bvec, sense = mip_pars$sense,
+#                lb=mip_pars$lb, ub=mip_pars$ub,
+#                vtype = mip_pars$vtype, objsense = "max", control=list(trace=0))
+#   mip_out = recover_pars(sol, n_train, n_test-1, p)
+#   obj[i] = sol$obj
+#   mip_outputs[[i]] = mip_out
+#   yest = mean(y_test[-i][which(mip_out$w>=0.1)])
+#   simdata[i, ] = c(xi, mip_out$a, mip_out$b, y_test[i], yest)
+mip_bins = array(NA, c(n_test, p, 2))
+for (i in 1:n_test){
+  message(paste("Matching unit", i, "of", n_test), "\r", appendLF = FALSE); flush.console()
+  xi = x_test[i,]
+  mip_pars =  setup_miqp_fhat(xi = xi,
+                               x_test = x_test[-i, ],
+                                    z_test = z_test[-i],
+                                    fhati1=fhat[i],
+                                    fhati0=fhat[i],
+                                    fhat1=fhat[-i],
+                                    fhat0=fhat[-i],
+                                    alpha=alpha, lambda0=lambda0, lambda1=lambda1,
+                                    gamma0=gamma0/sd(fhat0), gamma1=gamma1/sd(fhat1),
+                                    beta=beta, m=m, M=M)
+  sol <- do.call(Rcplex, c(mip_pars, list(objsense="max", control=list(trace=0))))
+  mip_out = recover_pars(sol, n_train, nrow(test_covs), p)
+  obj[i] = sol$obj
+  mip_outputs[[i]] = mip_out
+  yest = mean(y_test[-i][which(mip_out$w>=0.1)])
+  mip_bins[i, , 1] <- mip_out$a
+  mip_bins[i, , 2] <- mip_out$b
+  simdata[i, ] = c(xi, mip_out$a, mip_out$b, y_test[i], yest)
+}
+```
+
+```{r}
+bottom_left <- with(simdata, intersect(which(x1 < 0.25), which(x2 < 0.25))) %>% 
+  sample(size = 1)
+bottom_right <- with(simdata, intersect(which(x1 > 0.875), which(x2 < 0.25))) %>% 
+  sample(size = 1)
+top_left <- with(simdata, intersect(which(x2 > 0.875), which(x1 < 0.25))) %>% 
+  sample(size = 1)
+top_right <- with(simdata, intersect(which(x1 > 0.8), which(x2 > 0.8))) %>% 
+  sample(size = 2)
+# low_middle <- with(simdata, which((x1 > 0.25) &
+#                                       (x1 < 0.50) &
+#                                       (x2 > 0.25) &
+#                                       (x2 < 0.5))) %>% 
+#   sample(size = 1)
+high_middle <- with(simdata, which((x1 > 0.5) & 
+                                      (x1 < 0.75) &
+                                      (x2 > 0.5) &
+                                      (x2 < 0.75))) %>% 
+  sample(size = 1)
+# high_right_low_left <- with(simdata, which((x1 > 0.75) & 
+#                                       (x2 > 0.5) &
+#                                       (x2 < 0.75))) %>% 
+#   sample(size = 1)
+# high_left_low_right <- with(simdata, which((x2 > 0.75) &
+#                                       (x1 > 0.5) &
+#                                       (x1 < 0.75))) %>% 
+#   sample(size = 1)
+# to_plot <- c(bottom_left, bottom_right, top_left, top_right,
+#              low_middle, high_middle, high_right_low_left, high_left_low_right)
+to_plot <- c(bottom_left, bottom_right, top_left, top_right,
+             high_middle)
+
+grid_pts <-  
+  expand.grid(seq(0, 1, length.out = 50),
+              seq(0, 1, length.out = 50)) %>%
+  as.data.frame() %>%
+  `colnames<-`(c('X1', 'X2')) %>%
+  mutate(y = 10 * (X1 ^ 2 + X2 ^ 2))
+  
+
+ggplot() + 
+  geom_raster(data = grid_pts, aes(x = X1, y = X2, fill = y), 
+                         interpolate = TRUE) + 
+  geom_rect(data = simdata[to_plot, ],
+            aes(xmin = a1, xmax = b1, ymin = a2, ymax = b2), 
+            fill = 'NA', color = 'red', size = 0.5, alpha = 0.8) + 
+  geom_point(data = simdata, aes(x = x1, y = x2)) + 
+  geom_point(data = simdata[to_plot, ], aes(x = x1, y = x2), size = 5) + 
+  scale_x_continuous(name = 'X1', breaks = c(0, 1), labels = c(0, 1), limits = c(-.05, 1.05)) +
+  scale_y_continuous(name = 'X2', breaks = c(0, 1), labels = c(0, 1), limits = c(-.05, 1.05)) +
+  theme_minimal() + 
+  theme(legend.position = 'none', text = element_text(size = 20), axis.text.x = element_text(size = 20), axis.text.y = element_text(size = 20))
+```
+
+```{r}
+simdata %<>% mutate(id = 1:nrow(.))
+p <- 
+    ggplot(data = simdata) + 
+    geom_rect_interactive(aes(xmin = a1, xmax = b1, ymin = a2, ymax = b2,
+                              data_id = id),
+              fill = 'grey', color = 'NA', 
+              size = 0.5, alpha = 0) + 
+    geom_point_interactive(aes(x = x1, y = x2, data_id = id)) + 
+  labs(x = 'x1', y = 'x2') +
+  theme_bw()
+#E8C3D6
+#D8CADE
+#E9CCD1
+girafe(ggobj = p,
+         options = list(
+           opts_hover(
+           css = girafe_css(
+             css = 'fill:orange',
+             area = 'fill:#E8C3D6;fill-opacity:0.8',
+             point = 'fill:black;r:5;stroke:black'
+         ))))
+
+# testdf <- cbind(x_test, !as.logical(z_test), y_test) %>%
+#   `colnames<-`(c('X1', 'X2', 'treated', 'outcome')) %>%
+#   as.data.frame()
+# bin_plot(mip_bins, testdf, 1, 2)
+# 
+# ggplot(simdata) + 
+#   geom_rect(aes(xmin=a1, ymin=a2, xmax=b1, ymax=b2), fill="grey", 
+#             color="black", size=0.5, alpha=0.3) + 
+#   geom_point(aes(x=x1, y=x2), size=2) + 
+#   xlab("x1") + ylab("x2") +  theme_minimal()
+#ggsave("01-21_p=2_plot.png")
+
+```
+
 
 ## FLAME Simulations
 ```{r}
 x_dgp <- function(Z, p_rel, p_irrel) {
   n <- length(Z)
-  x_rel <- 
+  x_rel <-
     runif(n * p_rel, min = 0, max = 1) %>%
     matrix(nrow = n)
+  
+  # x_rel <- 
+  #   rbinom(n * p_rel, size = 1, prob = 0.5) %>%
+  #   matrix(nrow = n)
   
   x <- x_rel
   for (i in 1:p_irrel) {
     x %<>%
-      cbind(rbeta(n, shape1 = 1.5 + 5.5 * Z, shape2 = 6 - 4 * Z))
+      cbind(rbeta(n, shape1 = 1 + 8 * Z, shape2 = 9 - 8 * Z))
   }
   return(x)
 }
 
-y_dgp_FLAME <- function(X, Z, eps, U = 1, max_nonlinear = 5) {
+y_dgp_FLAME <- function(X, Z, eps, U = 1, p_rel = 10, max_nonlinear = 5) {
   n <- nrow(X)
   
-  s <- sample(c(-1, 1), size = 10, replace = TRUE)
-  alpha <- rnorm(10, 10 *s, 1)
-  baseline <- X %*% alpha
+  s <- sample(c(-1, 1), size = p_rel, replace = TRUE)
+  alpha <- rnorm(p_rel, 10 *s, 1)
+  baseline <- X[, 1:p_rel] %*% alpha
   
-  beta <- rnorm(10, 1.5, 0.15)
-  linear_treated <- X %*% beta * Z
+  beta <- rnorm(p_rel, 1.5, 0.15)
+  linear_treated <- X[, 1:p_rel] %*% beta * Z
   
   interactions <- combn(1:max_nonlinear, 2)
   nonlinear_treated <- rep(0, n)
@@ -1113,8 +1595,8 @@ for (sim in 1:nsims) {
   Z <- sample(c(0, 1), size = n, replace = TRUE)
   X <- x_dgp(Z, p_rel, p_irrel)
   eps <- rnorm(n, 0, sqrt(0.1))
-  Y1 <- y_dgp(X, rep(1, n), eps)
-  Y0 <- y_dgp(X, rep(0, n), eps)
+  Y1 <- y_dgp_FLAME(X, rep(1, n), eps)
+  Y0 <- y_dgp_FLAME(X, rep(0, n), eps)
   HTE <- Y1 - Y0
   Y <- Y1 * Z + Y0 * (1 - Z)
   df <- cbind(data.frame(X), data.frame(Y = Y, treated = as.logical(Z)))
@@ -1128,18 +1610,18 @@ for (sim in 1:nsims) {
     HTE_test_treated = HTE[(n_train+1):n][test_df$treated]
     
     # Matching methods
-    m_estimators <- c('Full Matching', 'Prognostic', 'CEM', 'GenMatch',
+    m_estimators <- c('Full Matching', 'Prognostic', 'CEM',
                       'Mahalanobis', 'Nearest Neighbor')
     est_out <- suppressWarnings(get_CATEs(inputs, m_estimators, hyperparameters = as.list(rep(0, 10))))
     CATEs = est_out$CATEs
     
     fcates = format_CATEs(CATEs, true_CATE = HTE_test_treated,
-                        estimators = c('Full Matching', 'Prognostic', 'CEM', 'GenMatch',
+                        estimators = c('Full Matching', 'Prognostic', 'CEM',
                                        'Mahalanobis', 'Nearest Neighbor'))
     all_CATEs <- rbind(all_CATEs, fcates)
     message(sprintf('%d of %d simulations completed', sim, nsims))
 }
-
+CATE_scatter_plot(all_CATEs)
 ```
 
 
@@ -1181,7 +1663,18 @@ ggsave('all_new_sims.png',
        width = 12, height = 10, units = 'in', device = 'png', dpi = 300)
 ```
 
+```{r}
+const <- readRDS('5_cov_simple.rds')
+lin <- readRDS('5_cov_linear.rds')
+quad <- readRDS('5_cov_quad.rds')
 
+constplot <- CATE_error_plot(const)
+linplot <- CATE_error_plot(lin)
+quadplot <- CATE_error_plot(quad)
+
+plot_grid(constplot, linplot, quadplot, 
+          labels = c('Constant', 'Linear', 'Quadratic'))
+```
 
 
 

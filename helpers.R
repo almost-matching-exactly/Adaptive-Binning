@@ -36,7 +36,7 @@ how_curvy <- function(cov, current_lower, current_upper, new_val, black_box, n_g
 }
 
 expansion_variance <- function(cov, current_lower, current_upper, 
-                               new_val, bart_fit, n_grid_pts = 8) {
+                               new_val, bart_fit0, bart_fit1, n_grid_pts = 8) {
   p <- length(current_lower)
   
   if (new_val > current_upper[cov]) {
@@ -55,17 +55,18 @@ expansion_variance <- function(cov, current_lower, current_upper,
     }) %>%
     t() 
   
-  pred_data_treat <- 
-    pred_data %>%
-    cbind(1)
+  # browser()
+  # pred_data_treat <-
+  #   pred_data %>%
+  #   cbind(1)
+  # 
+  # pred_data_control <-
+  #   pred_data %>%
+  #   cbind(0)
   
-  pred_data_control <- 
-    pred_data %>%
-    cbind(0)
-  
-  # return(var(predict(bart_fit, pred_data))) ## For XGBoost
-  return(var(colMeans(predict(bart_fit, pred_data_treat))) + 
-           var(colMeans(predict(bart_fit, pred_data_control)))) ## For BART
+  # return(var(predict(bart_fit0, pred_data)) + var(predict(bart_fit1, pred_data))) ## For XGBoost
+  return(var(colMeans(predict(bart_fit1, pred_data))) +
+           var(colMeans(predict(bart_fit0, pred_data)))) ## For BART
 }
 
 R_expansion_variance <- function(cov, current_bin, expanded_bin, df, bart_fit, n_grid_pts = 8) {
@@ -101,9 +102,10 @@ get_greedy_CATE <- function(n_test_treated, test_covs, bins, test_df) {
 }
 
 summarize_CATEs <- function(all_CATEs) {
+  ATT <- mean(all_CATEs$actual)
   all_CATEs %>%
     group_by(estimator) %>%
-    summarize(MAE = mean(abs(actual - predicted), na.rm = TRUE),
+    summarize(MAE = mean(abs(actual - predicted), na.rm = TRUE)/ATT,
               MAE_pct_approx = mean(abs(actual - predicted)/abs(actual +1), na.rm = TRUE)*100,
               percent_missing = 100 * mean(is.na(predicted))) %>%
     arrange(MAE) %>%

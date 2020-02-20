@@ -36,9 +36,9 @@ estimator_inputs <- function(df, n_train, n_units, black_box, cv) {
     if (cv) {
       message('Cross-validating BART; should take a minute\r')
       flush.console()
-      n.trees <- c(2, 5, 10, 20, 50, 200)
+      n.trees <- c(100, 200)
       nu_q <- list(c(3, 0.9), c(3, 0.99), c(10, 0.75))
-      k <- c(1, 2, 3, 5, 7)
+      k <- c(2, 3, 5)
       alpha <- c(0.5, 0.95)[2]
       beta <- c(.5, 2)[2]
       
@@ -46,8 +46,8 @@ estimator_inputs <- function(df, n_train, n_units, black_box, cv) {
                   data = train_df$Y,
                   verbose = FALSE,
                   method = 'k-fold',
-                  n.test = 10,
-                  n.reps = 10,
+                  n.test = 5,
+                  n.reps = 5,
                   loss = 'rmse',
                   n.trees = n.trees,
                   k = k,
@@ -59,15 +59,29 @@ estimator_inputs <- function(df, n_train, n_units, black_box, cv) {
       n.trees <- n.trees[best_params[1]]
       k <- k[best_params[2]]
     }
-    
-    black_box_fit <- bart(x.train = dplyr::select(train_df, -Y),
-                     y.train = train_df$Y,
-                     x.test = mutate(test_df[test_df$treated, 1:p], treated = 0), # Prognostic score on test units
-                     keeptrees = TRUE,
-                     keepevery = 10,
-                     verbose = FALSE,
-                     k = k,
-                     ntree = n.trees)
+    bbf0 <- bart(x.train = dplyr::select(filter(train_df, !treated), -c(treated, Y)),
+                 y.train = train_df$Y[which(!train_df$treated)],
+                 x.test = mutate(test_df[test_df$treated, 1:p]), # Prognostic score on test units
+                 keeptrees = TRUE,
+                 keepevery = 10,
+                 verbose = FALSE,
+                 k = k,
+                 ntree = n.trees)
+    bbf1 <- bart(x.train = dplyr::select(filter(train_df, treated), -c(treated, Y)),
+                 y.train = train_df$Y[which(train_df$treated)],
+                 keeptrees = TRUE,
+                 keepevery = 10,
+                 verbose = FALSE,
+                 k = k,
+                 ntree = n.trees)
+    # black_box_fit <- bart(x.train = dplyr::select(train_df, -Y),
+    #                  y.train = train_df$Y,
+    #                  x.test = mutate(test_df[test_df$treated, 1:p], treated = 0), # Prognostic score on test units
+    #                  keeptrees = TRUE,
+    #                  keepevery = 10,
+    #                  verbose = FALSE,
+    #                  k = k,
+    #                  ntree = n.trees)
     
     # pred_points <- 
     #   expand.grid(seq(-5, 5, length.out = 50), 
@@ -81,7 +95,7 @@ estimator_inputs <- function(df, n_train, n_units, black_box, cv) {
     # ggplot(data = pred_points, aes(x = X1, y = X2, fill = preds)) +
     #   geom_raster() +
     #   geom_rect(xmin = -1, xmax = 2, ymin = 2, ymax= 4, color = 'red', fill = NA)
-    counterfactuals <- black_box_fit$yhat.test.mean
+    counterfactuals <- bbf0$yhat.test.mean
   }
   else if (black_box == 'xgb') {
     eta <- c(.01, .05, .1, .2, .3, .5)
@@ -112,8 +126,8 @@ estimator_inputs <- function(df, n_train, n_units, black_box, cv) {
     
     best_params <- param_combs[which.min(RMSE), ]
     
-    black_box_fit <- xgboost(data = tmp,
-                        label = train_df$Y,
+    bbf0 <- xgboost(data = as.matrix(dplyr::select(filter(train_df, !treated), -c(treated, Y))),
+                        label = train_df$Y[which(!train_df$treated)],
                         params = list(objective = 'reg:squarederror', 
                                       eta = best_params$eta,
                                       max_depth = best_params$max_depth,
@@ -122,9 +136,19 @@ estimator_inputs <- function(df, n_train, n_units, black_box, cv) {
                         nround = best_params$nrounds,
                         verbose = 0)
     
+    bbf1 <- xgboost(data = as.matrix(dplyr::select(filter(train_df, treated), -c(treated, Y))),
+                    label = train_df$Y[which(train_df$treated)],
+                    params = list(objective = 'reg:squarederror', 
+                                  eta = best_params$eta,
+                                  max_depth = best_params$max_depth,
+                                  alpha = best_params$alpha,
+                                  subsample = best_params$subsample),
+                    nround = best_params$nrounds,
+                    verbose = 0)
+    
     counterfactuals <-
-      black_box_fit %>%
-      predict(newdata = as.matrix(mutate(test_df[test_df$treated, 1:p], treated = 0)))  
+      bbf0 %>%
+      predict(newdata = as.matrix(mutate(test_df[test_df$treated, 1:p])))  
   }
   else if (black_box == 'LASSO') {
     
@@ -147,6 +171,7 @@ estimator_inputs <- function(df, n_train, n_units, black_box, cv) {
               test_treated = test_treated,
               n_test_control = n_test_control,
               n_test_treated = n_test_treated,
-              bart_fit = black_box_fit,
+              bart_fit0 = bbf0,
+              bart_fit1 = bbf1,
               counterfactuals = counterfactuals))
 }
